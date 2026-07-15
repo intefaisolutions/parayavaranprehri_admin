@@ -16,7 +16,7 @@ const GenericPage = ({ title, desc, actionName }: { title: string, desc: string,
       )}
     </div>
     <div className="card">
-      <div className="search-bar" style={{ width: '100%', marginBottom: '24px', background: 'rgba(0,0,0,0.2)' }}>
+      <div className="search-bar" style={{ width: '100%', marginBottom: '24px', background: 'rgba(255,255,25,0.1)' }}>
         <Search size={18} color="var(--text-secondary)" />
         <input type="text" placeholder={`Search in ${title}...`} />
       </div>

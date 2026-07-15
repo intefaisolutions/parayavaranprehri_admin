@@ -10,62 +10,90 @@ export const LoginView = ({ onLogin }: { onLogin: () => void }) => {
   const [error, setError] = useState('');
 
   const handleSendOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (phone.length < 10) return;
-    
-    setLoading(true);
-    setError('');
-    
-    try {
-      const res = await fetch(getApiUrl('/api/v1/auth/otp/request'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone }),
-      });
-      
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to send OTP');
-      
-      setStep('OTP');
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  e.preventDefault();
+
+  if (phone.length < 10) return;
+
+  // Development bypass
+  if (phone === "9876543210") {
+    setOtp("123456");
+    setStep("OTP");
+    return;
+  }
+
+  setLoading(true);
+  setError("");
+
+  try {
+    const res = await fetch(getApiUrl("/api/v1/auth/otp/request"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || "Failed to send OTP");
+
+    setStep("OTP");
+  } catch (err: any) {
+    setError(err.message);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (otp.length !== 6) {
-      setError('Please enter a valid 6-digit OTP');
-      return;
-    }
-    
-    setLoading(true);
-    setError('');
-    
-    try {
-      const res = await fetch(getApiUrl('/api/v1/auth/otp/verify'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, code: otp }),
-      });
-      
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Invalid OTP');
-      
-      // Store token securely
-      localStorage.setItem('accessToken', data.accessToken);
-      localStorage.setItem('refreshToken', data.refreshToken);
-      localStorage.setItem('user', JSON.stringify(data.user));
-      
-      onLogin(); // Proceed to dashboard
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  e.preventDefault();
+
+  if (otp.length !== 6) {
+    setError('Please enter a valid 6-digit OTP');
+    return;
+  }
+
+  // 👇 Add this block here
+  if (
+    phone.trim() === '9876543210' &&
+    otp.trim() === '123456'
+  ) {
+    localStorage.setItem('accessToken', 'dev-token');
+    localStorage.setItem('refreshToken', 'dev-refresh-token');
+    localStorage.setItem(
+      'user',
+      JSON.stringify({
+        phone: '9876543210',
+        role: 'SUPER_ADMIN',
+      })
+    );
+
+    onLogin();
+    return;
+  }
+
+  // Existing code
+  setLoading(true);
+  setError('');
+
+  try {
+    const res = await fetch(getApiUrl('/api/v1/auth/otp/verify'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, code: otp }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Invalid OTP');
+
+    localStorage.setItem('accessToken', data.accessToken);
+    localStorage.setItem('refreshToken', data.refreshToken);
+    localStorage.setItem('user', JSON.stringify(data.user));
+
+    onLogin();
+  } catch (err: any) {
+    setError(err.message);
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div style={{
