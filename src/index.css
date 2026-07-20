@@ -266,6 +266,8 @@ button {
 }
 
 .btn-primary,
+.btn-secondary,
+.btn-warning,
 .btn-danger {
   color: #fff;
   border: none;
@@ -276,26 +278,52 @@ button {
   display: flex;
   align-items: center;
   gap: 8px;
-  transition: .3s;
+  transition: all .3s ease;
+  cursor: pointer;
 }
 
+/* Primary */
 .btn-primary {
   background: linear-gradient(135deg, var(--accent-color), #126E35);
   box-shadow: 0 4px 15px var(--accent-glow);
 }
 
+/* Secondary */
+.btn-secondary {
+  background: linear-gradient(135deg, #6c757d, #495057);
+  box-shadow: 0 4px 15px rgba(108, 117, 125, .35);
+}
+
+/* Warning */
+.btn-warning {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  box-shadow: 0 4px 15px rgba(245, 158, 11, .35);
+}
+
+/* Danger */
 .btn-danger {
   background: linear-gradient(135deg, #dc3545, #b02a37);
   box-shadow: 0 4px 15px rgba(220, 53, 69, .35);
 }
 
+/* Hover */
 .btn-primary:hover,
+.btn-secondary:hover,
+.btn-warning:hover,
 .btn-danger:hover {
   transform: translateY(-2px);
 }
 
 .btn-primary:hover {
   box-shadow: 0 8px 25px var(--accent-glow);
+}
+
+.btn-secondary:hover {
+  box-shadow: 0 8px 25px rgba(108, 117, 125, .45);
+}
+
+.btn-warning:hover {
+  box-shadow: 0 8px 25px rgba(245, 158, 11, .45);
 }
 
 .btn-danger:hover {

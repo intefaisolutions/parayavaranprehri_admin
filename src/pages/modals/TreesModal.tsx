@@ -2,11 +2,10 @@ import React from "react";
 import { X } from "lucide-react";
 
 export interface TreesFormData {
-  id: string;
-  name: string;
-  phone: string;
-  vehicles: number | string;
-  trees: number | string;
+  tree_id: string;
+  species: string;
+  person: string;
+  location: number | string;
   status: string;
 }
 
@@ -15,9 +14,7 @@ interface TreesModalProps {
   onClose: () => void;
   editing: boolean;
   formData: TreesFormData;
-  handleChange: (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => void;
+  handleChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
   handleSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
 }
 
@@ -36,77 +33,38 @@ const TreesModal: React.FC<TreesModalProps> = ({
       <div className="modal">
         <div className="modal-header">
           <h2>{editing ? "Edit Trees" : "Add Trees"}</h2>
-
           <button className="icon-btn" onClick={onClose}>
             <X size={18} />
           </button>
         </div>
-
         <form onSubmit={handleSubmit} className="modal-form">
           <div className="form-group">
-            <label>ID</label>
-            <input
-              name="id"
-              value={formData.id}
-              onChange={handleChange}
-            />
+            <label>Tree ID</label>
+            <input type="text" name="tree_id" value={formData.tree_id} onChange={handleChange} />
           </div>
-
           <div className="form-group">
             <label>Name</label>
-            <input
-              name="name"
-              value={formData.name}
-              onChange={handleChange}
-            />
+            <input type="text" name="species" value={formData.species} onChange={handleChange} />
           </div>
-
           <div className="form-group">
             <label>Phone</label>
-            <input
-              name="phone"
-              value={formData.phone}
-              onChange={handleChange}
-            />
+            <input type="text" name="person" value={formData.person} onChange={handleChange} />
           </div>
-
           <div className="form-group">
-            <label>Vehicles</label>
-            <input
-              type="number"
-              name="vehicles"
-              value={formData.vehicles}
-              onChange={handleChange}
-            />
+            <label>Location</label>
+            <input type="text" name="location" value={formData.location} onChange={handleChange} />
           </div>
-
-          <div className="form-group">
-            <label>Trees</label>
-            <input
-              type="number"
-              name="trees"
-              value={formData.trees}
-              onChange={handleChange}
-            />
-          </div>
-
           <div className="form-group">
             <label>Status</label>
-            <select
-              name="status"
-              value={formData.status}
-              onChange={handleChange}
-            >
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
+            <select name="status" value={formData.status} onChange={handleChange}>
+              <option value="Healthy">Healthy</option>
+              <option value="Weak">Weak</option>
             </select>
           </div>
-
           <div className="modal-actions">
             <button type="button" className="btn-danger" onClick={onClose}>
               Cancel
             </button>
-
             <button type="submit" className="btn-primary">
               {editing ? "Update Trees" : "Add Trees"}
             </button>
