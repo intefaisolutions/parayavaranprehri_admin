@@ -1,109 +1,96 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Users, Search, Plus, Filter, Edit, Trash2, Eye } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import DataTable from "../components/DataTable";
-import TreesModal from "./modals/TreesModal";
+import type { ColumnDef } from '@tanstack/react-table';
+import { type TreesFormData } from "./forms/TreeForm";
 
 export const TreesView = () => {
-  const initialForm = {
-  tree_id: "",
-  species: "",
-  person: "",
-  location: "",
-  status: "Healthy",
-  };
+  const navigate = useNavigate();
+  const location = useLocation();
 
-  const [showModal, setShowModal] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [formData, setFormData] = useState(initialForm);
-
-  interface Trees {
-  tree_id: string;
-  species: string;
-  person: string;
-  location: string;
-  status: string;
-  }
-
-  const [persons, setTrees] = useState<Trees[]>(
-    Array.from({ length: 150 }, (_, i) => ({
-    tree_id: `TR-${String(i + 1).padStart(3, "0")}`,
-    species: "Neem (Azadirachta indica)",
-    person: (i + 1) % 2 === 0 ? `VH-00${i + 1}` : `PR-00${i + 1}`,
-    location: `Sector ${i + 1}, Zone A`,
-    status: "Healthy",
+  const [trees, setTrees] = useState<TreesFormData[]>(
+    Array.from({ length: 15 }, (_, i) => ({
+      treeId: `TR-${String(i + 1).padStart(4, "0")}`,
+      treeName: "Neem",
+      species: "Azadirachta indica",
+      category: "Medicinal",
+      phone: "9876543210",
+      vehicleNumber: (i + 1) % 2 === 0 ? `MP09ZK${5863 + i}` : `MP04AB${1234 + i}`,
+      plantedDate: "2026-07-20",
+      state: "Madhya Pradesh",
+      district: "Indore",
+      zone: "Zone A",
+      address: `Sector ${i + 1}`,
+      latitude: 22.7196,
+      longitude: 75.8577,
+      status: "HEALTHY",
+      remarks: "",
     }))
   );
 
-  const handleChange = (
-  e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => { setFormData({ ...formData, [e.target.name]: e.target.value }); };
-
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (editing) {
-    setTrees((prev) =>prev.map((person) => person.tree_id === formData.tree_id ? { ...formData } : person));
-    } else {
-    // Add new record at the top
-    setTrees((prev) => [
-    {
-    tree_id: formData.tree_id,
-    species: formData.species,
-    person: formData.person,
-    location: formData.location,
-    status: formData.status,
-    },
-    ...prev,
-    ]);
+  useEffect(() => {
+    if (location.state?.savedTree) {
+      const savedTree = location.state.savedTree as TreesFormData;
+      const isEditing = location.state.isEditing;
+      if (isEditing) {
+        setTrees(prev => prev.map(t => t.treeId === savedTree.treeId ? savedTree : t));
+      } else {
+        const newTreeId = `TR-${String(trees.length + 1).padStart(4, "0")}`;
+        setTrees(prev => [{ ...savedTree, treeId: newTreeId }, ...prev]);
+      }
+      // clear the state so it doesn't re-trigger on reload
+      window.history.replaceState({}, document.title);
     }
-    setShowModal(false);
+  }, [location, trees.length]);
+
+  const openAddPage = () => {
+    navigate('/trees/add');
   };
 
-  const openAddModal = () => {
-  setEditing(false);
-  setFormData(initialForm);
-  setShowModal(true);
+  const openEditPage = (tree: TreesFormData) => {
+    navigate('/trees/edit', { state: { tree } });
   };
 
-  const openEditModal = (person: typeof initialForm) => {
-  setEditing(true);
-  setFormData(person);
-  setShowModal(true);
-  };
-
-  const columns: ColumnDef<Trees>[] = [
-    { accessorKey:"tree_id", header:"Tree ID", enableSorting:true },
-    { accessorKey:"species", header:"Species", enableSorting:true },
-    { accessorKey:"person", header:"Assigned To", enableSorting:true },
-    { accessorKey:"location", header:"Location", enableSorting:true },
+  const columns: ColumnDef<TreesFormData>[] = [
+    { accessorKey: "treeId", header: "Tree ID", enableSorting: true },
+    { accessorKey: "treeName", header: "Name", enableSorting: true },
+    { accessorKey: "species", header: "Species", enableSorting: true },
+    { accessorKey: "vehicleNumber", header: "Assigned Vehicle", enableSorting: true },
     {
-    accessorKey:"status",
-    header:"Status",
-    cell: ({ row }) => (
-    <span className={`status-badge ${ row.original.status==="Healthy" ? "status-active" : "status-inactive" }`}>
-      {row.original.status}
-    </span>
-    ),
-    enableSorting:false
+      accessorKey: "location",
+      header: "Location",
+      cell: ({ row }) => <span>{row.original.address}, {row.original.zone}</span>,
+      enableSorting: true
     },
     {
-    header:"Actions",
-    cell:({row})=>(
-    <div style={{ display: 'flex', gap: '8px' }}>
-                  <button className="icon-btn" style={{ width: 28, height: 28 }}><Eye size={14}/></button>
-      <button className="icon-btn" style={{ width: 28, height: 28 }} onClick={()=>openEditModal(row.original)}>
-        <Edit size={14} />
-      </button>
-      <button className="icon-btn" style={{ width: 28, height: 28 }}>
-        <Trash2 size={14} />
-      </button>
-    </div>
-    ),
-    enableSorting:false
+      accessorKey: "status",
+      header: "Status",
+      cell: ({ row }) => {
+        let badgeClass = "status-inactive";
+        if (["HEALTHY", "GROWING"].includes(row.original.status)) badgeClass = "status-active";
+        return <span className={`status-badge ${badgeClass}`}>{row.original.status}</span>;
+      },
+      enableSorting: false
+    },
+    {
+      header: "Actions",
+      cell: ({ row }) => (
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button className="icon-btn" style={{ width: 28, height: 28 }}><Eye size={14} /></button>
+          <button className="icon-btn" style={{ width: 28, height: 28 }} onClick={() => openEditPage(row.original as TreesFormData)}>
+            <Edit size={14} />
+          </button>
+          <button className="icon-btn" style={{ width: 28, height: 28 }}>
+            <Trash2 size={14} />
+          </button>
+        </div>
+      ),
+      enableSorting: false
     }
   ];
 
   return (
-  <>
     <div className="dashboard-area">
       <div className="page-header">
         <div className="page-title">
@@ -114,22 +101,15 @@ export const TreesView = () => {
           <button className="icon-btn" title="Filter">
             <Filter size={18} />
           </button>
-          <button className="btn-primary" onClick={openAddModal}>
+          <button className="btn-primary" onClick={openAddPage}>
             <Plus size={18} />
             Register Tree
           </button>
         </div>
       </div>
       <div className="card">
-        <DataTable data={persons} columns={columns} searchPlaceholder="Search by Tree ID, Species, Assigned Vehicle..." />
+        <DataTable data={trees} columns={columns} searchPlaceholder="Search by Tree ID, Species, Assigned Vehicle..." />
       </div>
     </div>
-    <TreesModal isOpen={showModal} onClose={()=> setShowModal(false)}
-      editing={editing}
-      formData={formData}
-      handleChange={handleChange}
-      handleSubmit={handleSubmit}
-      />
-  </>
   );
 }

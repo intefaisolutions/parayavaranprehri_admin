@@ -16,7 +16,7 @@ export const LoginView = ({ onLogin }: { onLogin: () => void }) => {
 
   // Development bypass
   if (phone === "9876543210") {
-    setOtp("123456");
+    setOtp("1234");
     setStep("OTP");
     return;
   }
@@ -45,15 +45,15 @@ export const LoginView = ({ onLogin }: { onLogin: () => void }) => {
   const handleVerifyOtp = async (e: React.FormEvent) => {
   e.preventDefault();
 
-  if (otp.length !== 6) {
-    setError('Please enter a valid 6-digit OTP');
+  if (otp.length !== 4) {
+    setError('Please enter a valid 4-digit OTP');
     return;
   }
 
   // 👇 Add this block here
   if (
     phone.trim() === '9876543210' &&
-    otp.trim() === '123456'
+    otp.trim() === '1234'
   ) {
     localStorage.setItem('accessToken', 'dev-token');
     localStorage.setItem('refreshToken', 'dev-refresh-token');
@@ -145,15 +145,20 @@ export const LoginView = ({ onLogin }: { onLogin: () => void }) => {
                 type="text" 
                 className="search-bar" 
                 style={{ width: '100%', borderRadius: '8px', padding: '12px', textAlign: 'center', letterSpacing: '4px', fontSize: '18px' }}
-                placeholder="000000" 
+                placeholder="0000" 
                 value={otp}
                 onChange={(e) => setOtp(e.target.value)}
-                maxLength={6}
+                maxLength={4}
                 required
               />
-              <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '8px', textAlign: 'right' }}>
-                OTP sent to +91 {phone} <a href="#" onClick={() => setStep('PHONE')} style={{ color: 'var(--accent-color)' }}>(Change)</a>
-              </p>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
+                <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                  OTP sent to +91 {phone} <a href="#" onClick={(e) => { e.preventDefault(); setStep('PHONE'); }} style={{ color: 'var(--accent-color)' }}>(Change)</a>
+                </p>
+                <a href="#" onClick={(e) => { e.preventDefault(); handleSendOtp(e); }} style={{ fontSize: '12px', color: 'var(--accent-color)', fontWeight: '600' }}>
+                  Resend OTP
+                </a>
+              </div>
             </div>
             <button type="submit" className="btn-primary" disabled={loading} style={{ width: '100%', justifyContent: 'center', padding: '12px', opacity: loading ? 0.7 : 1 }}>
               {loading ? <Loader2 size={18} className="spin" /> : 'Verify & Login'}

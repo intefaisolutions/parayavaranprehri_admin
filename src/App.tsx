@@ -8,6 +8,7 @@ import Dashboard from "./pages/Dashboard";
 import { PersonsView } from "./pages/Persons";
 import { VehiclesView } from "./pages/Vehicles";
 import { TreesView } from "./pages/Trees";
+import { TreeForm } from "./pages/forms/TreeForm";
 import { IdentityView } from "./pages/Identity";
 import { MitrasView } from "./pages/Mitras";
 import { TasksView } from "./pages/TaskManagement";
@@ -45,7 +46,7 @@ import { AuditForm } from "./pages/forms/AuditForm";
 import { LoginView } from "./pages/Login";
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(true); // Forced true for client demo
 
   const renderRoutes = () => (
     <Routes>
@@ -69,6 +70,8 @@ function App() {
           <Route path="/persons" element={<PersonsView />} />
           <Route path="/vehicles" element={<VehiclesView />} />
           <Route path="/trees" element={<TreesView />} />
+          <Route path="/trees/add" element={<TreeForm />} />
+          <Route path="/trees/edit" element={<TreeForm />} />
           <Route path="/identity" element={<IdentityView />} />
           <Route path="/mitras" element={<MitrasView />} />
 
