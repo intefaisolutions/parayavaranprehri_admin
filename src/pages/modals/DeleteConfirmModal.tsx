@@ -5,6 +5,7 @@ interface DeleteConfirmModalProps {
   onClose: () => void;
   onConfirm: () => void;
   personName?: string;
+  title?: string;
 }
 
 const DeleteConfirmModal = ({
@@ -12,13 +13,14 @@ const DeleteConfirmModal = ({
   onClose,
   onConfirm,
   personName,
+  title = "Delete Person",
 }: DeleteConfirmModalProps) => {
   if (!isOpen) return null;
 
   return (
     <div className="modal-overlay">
       <div className="modal">
-        <h2>Delete Person</h2>
+        <h2>{title}</h2>
 
         <p>
           Are you sure you want to delete{" "}

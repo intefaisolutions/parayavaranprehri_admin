@@ -1,139 +1,168 @@
 import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { Award, Image, Tag, ToggleLeft, UserCog } from "lucide-react";
+import { apiFetch } from "../../utils/apiConfig";
+import { SmartForm } from "../../components/form/SmartForm";
+import type { FormSectionConfig } from "../../components/form/SmartForm";
+import { FormPageHeader } from "../../components/form/FormPageHeader";
+
+const CERTIFICATE_TYPE_OPTIONS = [
+  { label: "Participation", value: "Participation" },
+  { label: "Achievement", value: "Achievement" },
+  { label: "Appreciation", value: "Appreciation" },
+  { label: "Excellence", value: "Excellence" },
+];
 
 export const CertificateForm = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
   const editCertificate = location.state?.certificate;
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
-  const [formData, setFormData] = useState(
+  const [formData, setFormData] = useState<Record<string, any>>(
     editCertificate || {
-      id: "",
       certificateType: "",
       templateName: "",
-      logo: "",
-      signature: "",
-      background: "",
+      logoUrl: "",
+      signatureUrl: "",
+      backgroundUrl: "",
       lastUpdatedBy: "",
-      updatedDate: "",
       status: "Active",
     }
   );
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+  const handleFieldChange = (name: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitting(true);
+    setError("");
 
-    navigate("/certificates");
+    const { _id: _formId, updatedAt: _updatedAt, createdAt: _createdAt, ...payload } = formData;
+
+    try {
+      if (editCertificate?._id) {
+        await apiFetch(`/api/v1/certificates/templates/${editCertificate._id}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await apiFetch("/api/v1/certificates/templates", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+      }
+      navigate("/certificates");
+    } catch (err: any) {
+      setError(err.message || "Failed to save certificate template");
+    } finally {
+      setSubmitting(false);
+    }
   };
+
+  const sections: FormSectionConfig[] = [
+    {
+      title: "Template Identity",
+      description: "Basic details that describe what this certificate template is used for.",
+      icon: Tag,
+      fields: [
+        {
+          name: "certificateType",
+          label: "Certificate Type",
+          type: "select",
+          icon: Tag,
+          required: true,
+          options: CERTIFICATE_TYPE_OPTIONS,
+          helpText: "The category of achievement this template represents.",
+        },
+        {
+          name: "templateName",
+          label: "Template Name",
+          type: "text",
+          icon: Award,
+          required: true,
+          placeholder: "e.g. Green Champion 2026",
+        },
+        {
+          name: "status",
+          label: "Status",
+          type: "select",
+          icon: ToggleLeft,
+          required: true,
+          options: [
+            { label: "Active", value: "Active" },
+            { label: "Inactive", value: "Inactive" },
+          ],
+          helpText: "Only Active templates can be used to issue new certificates.",
+        },
+      ],
+    },
+    {
+      title: "Branding & Assets",
+      description: "Add the visual assets used to render the certificate (shown as a live preview).",
+      icon: Image,
+      fields: [
+        {
+          name: "logoUrl",
+          label: "Logo URL",
+          type: "image",
+          placeholder: "https://...",
+        },
+        {
+          name: "signatureUrl",
+          label: "Signature URL",
+          type: "image",
+          placeholder: "https://...",
+        },
+        {
+          name: "backgroundUrl",
+          label: "Background URL",
+          type: "image",
+          placeholder: "https://...",
+          span: 2,
+        },
+      ],
+    },
+    {
+      title: "Ownership",
+      icon: UserCog,
+      fields: [
+        {
+          name: "lastUpdatedBy",
+          label: "Last Updated By",
+          type: "text",
+          icon: UserCog,
+          placeholder: "Admin name",
+        },
+      ],
+    },
+  ];
 
   return (
     <div className="dashboard-area">
-      <div className="page-header">
-        <h1>{editCertificate ? "Edit Certificate" : "Add Certificate"}</h1>
-      </div>
+      <FormPageHeader
+        icon={Award}
+        title={editCertificate ? "Edit Certificate Template" : "Add Certificate Template"}
+        subtitle="Design a reusable certificate template you can issue to Paryavaran Mitras and other volunteers."
+        onBack={() => navigate("/certificates")}
+      />
 
       <div className="card">
-        <form className="modal-form" onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label>Certificate Type</label>
-            <input
-              name="certificateType"
-              value={formData.certificateType}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Template Name</label>
-            <input
-              name="templateName"
-              value={formData.templateName}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Logo</label>
-            <input
-              name="logo"
-              value={formData.logo}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Signature</label>
-            <input
-              name="signature"
-              value={formData.signature}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Background</label>
-            <input
-              name="background"
-              value={formData.background}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Last Updated By</label>
-            <input
-              name="lastUpdatedBy"
-              value={formData.lastUpdatedBy}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Updated Date</label>
-            <input
-              type="date"
-              name="updatedDate"
-              value={formData.updatedDate}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Status</label>
-            <select
-              name="status"
-              value={formData.status}
-              onChange={handleChange}
-            >
-              <option>Active</option>
-              <option>Inactive</option>
-            </select>
-          </div>
-
-          <div className="modal-actions">
-            <button
-              type="button"
-              className="btn-danger"
-              onClick={() => navigate("/certificates")}
-            >
-              Cancel
-            </button>
-
-            <button type="submit" className="btn-primary">
-              Save Certificate
-            </button>
-          </div>
-        </form>
+        <SmartForm
+          sections={sections}
+          formData={formData}
+          onFieldChange={handleFieldChange}
+          onSubmit={handleSubmit}
+          submitting={submitting}
+          error={error}
+          submitLabel={editCertificate ? "Update Template" : "Save Template"}
+          cancelLabel="Cancel"
+          onCancel={() => navigate("/certificates")}
+        />
       </div>
     </div>
   );

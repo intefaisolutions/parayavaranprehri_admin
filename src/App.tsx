@@ -26,6 +26,7 @@ import { LeadersView } from "./pages/InitiativeLeaders";
 
 import { CertificatesView } from "./pages/Certificates";
 import { CertificateForm } from "./pages/forms/CertificateForm";
+import { IssuedCertificatesView } from "./pages/IssuedCertificates";
 
 import { PartnersView } from "./pages/ChannelPartners";
 import { PartnerForm } from "./pages/forms/PartnerForm";
@@ -46,7 +47,9 @@ import { AuditForm } from "./pages/forms/AuditForm";
 import { LoginView } from "./pages/Login";
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(true); // Forced true for client demo
+  const [isAuthenticated, setIsAuthenticated] = useState(
+    () => !!localStorage.getItem('accessToken')
+  );
 
   const renderRoutes = () => (
     <Routes>
@@ -94,6 +97,7 @@ function App() {
           <Route path="/certificates" element={<CertificatesView />} />
           <Route path="/certificates/add" element={<CertificateForm />} />
           <Route path="/certificates/edit" element={<CertificateForm />} />
+          <Route path="/certificates/issued" element={<IssuedCertificatesView />} />
 
           <Route path="/partners" element={<PartnersView />} />
           <Route path="/partners/add" element={<PartnerForm />} />

@@ -1,166 +1,295 @@
-import React, { useState } from 'react';
-import { Leaf, Phone, Loader2 } from 'lucide-react';
-import { getApiUrl } from '../utils/apiConfig';
+import React, { useEffect, useRef, useState } from 'react';
+import { Leaf, Phone, Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
+import { apiFetch } from '../utils/apiConfig';
+import { OtpInput } from '../components/form/OtpInput';
+
+type LoginMode = 'PASSWORD' | 'OTP';
+
+const RESEND_COOLDOWN_SECONDS = 45;
+
+interface AuthResponse {
+  accessToken: string;
+  refreshToken: string;
+  user: Record<string, unknown>;
+}
 
 export const LoginView = ({ onLogin }: { onLogin: () => void }) => {
+  const [mode, setMode] = useState<LoginMode>('PASSWORD');
+
+  // Email & password login
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
+  // Mobile OTP login
   const [step, setStep] = useState<'PHONE' | 'OTP'>('PHONE');
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(0);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSendOtp = async (e: React.FormEvent) => {
-  e.preventDefault();
+  const cooldownTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  if (phone.length < 10) return;
+  useEffect(() => {
+    return () => {
+      if (cooldownTimer.current) clearInterval(cooldownTimer.current);
+    };
+  }, []);
 
-  // Development bypass
-  if (phone === "9876543210") {
-    setOtp("1234");
-    setStep("OTP");
-    return;
-  }
+  const startResendCooldown = () => {
+    setResendCooldown(RESEND_COOLDOWN_SECONDS);
+    if (cooldownTimer.current) clearInterval(cooldownTimer.current);
+    cooldownTimer.current = setInterval(() => {
+      setResendCooldown((prev) => {
+        if (prev <= 1) {
+          if (cooldownTimer.current) clearInterval(cooldownTimer.current);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
 
-  setLoading(true);
-  setError("");
-
-  try {
-    const res = await fetch(getApiUrl("/api/v1/auth/otp/request"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone }),
-    });
-
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || "Failed to send OTP");
-
-    setStep("OTP");
-  } catch (err: any) {
-    setError(err.message);
-  } finally {
-    setLoading(false);
-  }
-};
-
-  const handleVerifyOtp = async (e: React.FormEvent) => {
-  e.preventDefault();
-
-  if (otp.length !== 4) {
-    setError('Please enter a valid 4-digit OTP');
-    return;
-  }
-
-  // 👇 Add this block here
-  if (
-    phone.trim() === '9876543210' &&
-    otp.trim() === '1234'
-  ) {
-    localStorage.setItem('accessToken', 'dev-token');
-    localStorage.setItem('refreshToken', 'dev-refresh-token');
-    localStorage.setItem(
-      'user',
-      JSON.stringify({
-        phone: '9876543210',
-        role: 'SUPER_ADMIN',
-      })
-    );
-
-    onLogin();
-    return;
-  }
-
-  // Existing code
-  setLoading(true);
-  setError('');
-
-  try {
-    const res = await fetch(getApiUrl('/api/v1/auth/otp/verify'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone, code: otp }),
-    });
-
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || 'Invalid OTP');
-
+  const persistSession = (data: AuthResponse) => {
     localStorage.setItem('accessToken', data.accessToken);
     localStorage.setItem('refreshToken', data.refreshToken);
     localStorage.setItem('user', JSON.stringify(data.user));
-
     onLogin();
-  } catch (err: any) {
-    setError(err.message);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
+
+  const handlePasswordLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      const data = await apiFetch<AuthResponse>('/api/v1/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+      });
+      persistSession(data);
+    } catch (err: any) {
+      setError(err.message || 'Invalid email or password');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const requestOtp = async () => {
+    await apiFetch('/api/v1/auth/otp/request', {
+      method: 'POST',
+      body: JSON.stringify({ phone }),
+    });
+    startResendCooldown();
+  };
+
+  const handleSendOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (phone.length < 10) return;
+
+    setLoading(true);
+    setError('');
+
+    try {
+      await requestOtp();
+      setOtp('');
+      setStep('OTP');
+    } catch (err: any) {
+      setError(err.message || 'Failed to send OTP');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (resendCooldown > 0 || loading) return;
+    setLoading(true);
+    setError('');
+    try {
+      await requestOtp();
+      setOtp('');
+    } catch (err: any) {
+      setError(err.message || 'Failed to resend OTP');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const verifyOtp = async (code: string) => {
+    if (code.length !== 4) {
+      setError('Please enter the 4-digit OTP');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const data = await apiFetch<AuthResponse>('/api/v1/auth/otp/verify', {
+        method: 'POST',
+        body: JSON.stringify({ phone, code }),
+      });
+      persistSession(data);
+    } catch (err: any) {
+      setError(err.message || 'Invalid OTP');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await verifyOtp(otp);
+  };
+
+  const switchMode = (next: LoginMode) => {
+    setMode(next);
+    setError('');
+    setStep('PHONE');
+    setOtp('');
+    setPhone('');
+  };
 
   return (
-    <div style={{
-      height: '100vh',
-      width: '100vw',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: 'var(--bg-color)'
-    }}>
-      <div className="card" style={{ width: '400px', padding: '40px', textAlign: 'center' }}>
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px', color: 'var(--accent-color)' }}>
-          <Leaf size={48} />
+    <div className="login-shell">
+      <div className="card login-card">
+        <div className="login-logo">
+          <div className="login-logo-badge">
+            <Leaf size={32} />
+          </div>
         </div>
-        <h2 style={{ marginBottom: '8px' }}>Paryavaran Prahri</h2>
-        <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>Super Admin Command Center</p>
-        
+        <h2 style={{ marginBottom: '6px' }}>Paryavaran Prahri</h2>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: '28px', fontSize: 14 }}>
+          Super Admin Command Center
+        </p>
+
+        <div className="login-tabs">
+          <button
+            type="button"
+            onClick={() => switchMode('PASSWORD')}
+            className={`login-tab ${mode === 'PASSWORD' ? 'active' : ''}`}
+          >
+            <Lock size={14} /> Email &amp; Password
+          </button>
+          <button
+            type="button"
+            onClick={() => switchMode('OTP')}
+            className={`login-tab ${mode === 'OTP' ? 'active' : ''}`}
+          >
+            <Phone size={14} /> Mobile OTP
+          </button>
+        </div>
+
         {error && (
-          <div style={{ background: 'rgba(255, 61, 0, 0.1)', color: '#ff3d00', padding: '12px', borderRadius: '8px', marginBottom: '16px', fontSize: '14px' }}>
-            {error}
+          <div className="login-error">
+            <AlertCircle size={16} style={{ flexShrink: 0 }} />
+            <span>{error}</span>
           </div>
         )}
 
-        {step === 'PHONE' ? (
-          <form onSubmit={handleSendOtp}>
-            <div style={{ textAlign: 'left', marginBottom: '20px' }}>
-              <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-secondary)' }}>Mobile Number</label>
-              <div className="search-bar" style={{ width: '100%', borderRadius: '8px', padding: '12px' }}>
-                <Phone size={18} color="var(--text-secondary)" />
-                <input 
-                  type="text" 
-                  placeholder="Enter 10-digit number" 
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  maxLength={10}
+        {mode === 'PASSWORD' ? (
+          <form onSubmit={handlePasswordLogin}>
+            <div className="login-field">
+              <label>Email</label>
+              <div className="login-input-wrap">
+                <Mail size={18} color="var(--text-secondary)" />
+                <input
+                  type="email"
+                  placeholder="superadmin@paryavaran.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoFocus
                   required
                 />
               </div>
             </div>
-            <button type="submit" className="btn-primary" disabled={loading} style={{ width: '100%', justifyContent: 'center', padding: '12px', opacity: loading ? 0.7 : 1 }}>
+            <div className="login-field" style={{ marginBottom: 24 }}>
+              <label>Password</label>
+              <div className="login-input-wrap">
+                <Lock size={18} color="var(--text-secondary)" />
+                <input
+                  type="password"
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+            <button type="submit" className="btn-primary login-submit" disabled={loading}>
+              {loading ? <Loader2 size={18} className="spin" /> : 'Login'}
+            </button>
+          </form>
+        ) : step === 'PHONE' ? (
+          <form onSubmit={handleSendOtp}>
+            <div className="login-field" style={{ marginBottom: 24 }}>
+              <label>Mobile Number</label>
+              <div className="login-input-wrap">
+                <Phone size={18} color="var(--text-secondary)" />
+                <span className="login-input-prefix">+91</span>
+                <input
+                  type="text"
+                  placeholder="Enter 10-digit number"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
+                  inputMode="numeric"
+                  maxLength={10}
+                  autoFocus
+                  required
+                />
+              </div>
+            </div>
+            <button
+              type="submit"
+              className="btn-primary login-submit"
+              disabled={loading || phone.length !== 10}
+            >
               {loading ? <Loader2 size={18} className="spin" /> : 'Send OTP'}
             </button>
+            <p className="login-hint">
+              Mobile must already be registered as a user; OTP is sent via SMS.
+            </p>
           </form>
         ) : (
           <form onSubmit={handleVerifyOtp}>
-            <div style={{ textAlign: 'left', marginBottom: '20px' }}>
-              <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-secondary)' }}>Enter OTP</label>
-              <input 
-                type="text" 
-                className="search-bar" 
-                style={{ width: '100%', borderRadius: '8px', padding: '12px', textAlign: 'center', letterSpacing: '4px', fontSize: '18px' }}
-                placeholder="0000" 
+            <div className="login-field" style={{ textAlign: 'center' }}>
+              <label style={{ textAlign: 'center' }}>Enter the 4-digit OTP</label>
+              <OtpInput
                 value={otp}
-                onChange={(e) => setOtp(e.target.value)}
-                maxLength={4}
-                required
+                onChange={setOtp}
+                onComplete={(code) => verifyOtp(code)}
+                disabled={loading}
               />
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
-                <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                  OTP sent to +91 {phone} <a href="#" onClick={(e) => { e.preventDefault(); setStep('PHONE'); }} style={{ color: 'var(--accent-color)' }}>(Change)</a>
-                </p>
-                <a href="#" onClick={(e) => { e.preventDefault(); handleSendOtp(e); }} style={{ fontSize: '12px', color: 'var(--accent-color)', fontWeight: '600' }}>
-                  Resend OTP
-                </a>
+              <div className="otp-meta-row">
+                <span className="otp-sent-to">
+                  OTP sent to +91 {phone}{' '}
+                  <button
+                    type="button"
+                    className="link-btn"
+                    onClick={() => {
+                      setStep('PHONE');
+                      setError('');
+                    }}
+                  >
+                    Change
+                  </button>
+                </span>
+                {resendCooldown > 0 ? (
+                  <span className="otp-resend-disabled">Resend in {resendCooldown}s</span>
+                ) : (
+                  <button type="button" className="link-btn" onClick={handleResendOtp} disabled={loading}>
+                    Resend OTP
+                  </button>
+                )}
               </div>
             </div>
-            <button type="submit" className="btn-primary" disabled={loading} style={{ width: '100%', justifyContent: 'center', padding: '12px', opacity: loading ? 0.7 : 1 }}>
+            <button
+              type="submit"
+              className="btn-primary login-submit"
+              disabled={loading || otp.length !== 4}
+              style={{ marginTop: 24 }}
+            >
               {loading ? <Loader2 size={18} className="spin" /> : 'Verify & Login'}
             </button>
           </form>

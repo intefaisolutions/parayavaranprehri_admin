@@ -44,6 +44,7 @@ const Sidebar = () => {
     { id: "media", icon: <ImageIcon size={20} />, label: "Media Management" },
     { id: "leaders", icon: <Users2 size={20} />, label: "Initiative Leaders" },
     { id: "certificates", icon: <Award size={20} />, label: "Certificates" },
+    { id: "certificates/issued", icon: <FileBadge size={20} />, label: "Issued Certificates" },
     { id: "partners", icon: <Handshake size={20} />, label: "Channel Partners" },
     { id: "notifications", icon: <Bell size={20} />, label: "Notifications" },
     { id: "callcenter", icon: <PhoneCall size={20} />, label: "Call Center" },

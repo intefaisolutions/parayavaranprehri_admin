@@ -1,11 +1,20 @@
 import React from "react";
-import { X } from "lucide-react";
+import { X, User, Phone, Mail, Briefcase, MapPin, Building2, Landmark, Star, ShieldCheck } from "lucide-react";
+import { SmartForm } from "../../components/form/SmartForm";
+import type { FormSectionConfig } from "../../components/form/SmartForm";
 
 export interface MitrasFormData {
-  id: string;
+  _id?: string;
+  mitraId?: string;
   name: string;
-  vidhan_sabha: string;
-  assigned_zone: number | string;
+  mobile: string;
+  email?: string;
+  profession?: string;
+  vidhanSabha: string;
+  assignedZone: string;
+  district?: string;
+  state?: string;
+  membership: string;
   status: string;
 }
 
@@ -14,8 +23,9 @@ interface MitrasModalProps {
   onClose: () => void;
   editing: boolean;
   formData: MitrasFormData;
-  handleChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
-  handleSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
+  submitting?: boolean;
+  onFieldChange: (name: string, value: string) => void;
+  handleSubmit: (e: React.FormEvent) => void;
 }
 
 const MitrasModal: React.FC<MitrasModalProps> = ({
@@ -23,54 +33,102 @@ const MitrasModal: React.FC<MitrasModalProps> = ({
   onClose,
   editing,
   formData,
-  handleChange,
+  submitting,
+  onFieldChange,
   handleSubmit,
 }) => {
   if (!isOpen) return null;
 
+  const sections: FormSectionConfig[] = [
+    {
+      title: "Volunteer Details",
+      description: "Core identity and contact information for this Mitra.",
+      icon: User,
+      fields: [
+        { name: "name", label: "Full Name", type: "text", icon: User, required: true, span: 2 },
+        { name: "mobile", label: "Mobile Number", type: "tel", icon: Phone, required: true },
+        { name: "email", label: "Email", type: "email", icon: Mail },
+        { name: "profession", label: "Profession", type: "text", icon: Briefcase, span: 2 },
+      ],
+    },
+    {
+      title: "Assignment",
+      description: "Where this Mitra operates and is accountable to.",
+      icon: MapPin,
+      fields: [
+        { name: "vidhanSabha", label: "Vidhan Sabha", type: "text", icon: Landmark },
+        { name: "assignedZone", label: "Assigned Zone", type: "text", icon: MapPin },
+        { name: "district", label: "District", type: "text", icon: Building2 },
+        { name: "state", label: "State", type: "text", icon: Building2 },
+      ],
+    },
+    {
+      title: "Membership & Status",
+      icon: ShieldCheck,
+      fields: [
+        {
+          name: "membership",
+          label: "Membership",
+          type: "select",
+          icon: Star,
+          required: true,
+          options: [
+            { label: "Free", value: "free" },
+            { label: "Premium", value: "premium" },
+          ],
+        },
+        {
+          name: "status",
+          label: "Status",
+          type: "select",
+          icon: ShieldCheck,
+          required: true,
+          options: [
+            { label: "Approved", value: "Approved" },
+            { label: "Pending", value: "Pending" },
+            { label: "Cancelled", value: "Cancelled" },
+          ],
+        },
+      ],
+    },
+  ];
+
   return (
     <div className="modal-overlay">
-      <div className="modal">
+      <div className="modal" style={{ width: 640 }}>
         <div className="modal-header">
-          <h2>{editing ? "Edit Mitras" : "Add Mitras"}</h2>
+          <h2>{editing ? "Edit Mitra" : "Assign New Mitra"}</h2>
           <button className="icon-btn" onClick={onClose}>
             <X size={18} />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="modal-form">
-          <div className="form-group">
-            <label>ID</label>
-            <input name="id" value={formData.id} onChange={handleChange} />
+
+        {editing && formData.mitraId && (
+          <div
+            style={{
+              marginBottom: 16,
+              fontSize: 13,
+              color: "var(--text-secondary)",
+              background: "rgba(43, 150, 79, 0.06)",
+              border: "1px solid var(--border-color)",
+              padding: "8px 12px",
+              borderRadius: 8,
+            }}
+          >
+            Mitra ID: <strong style={{ color: "var(--text-primary)" }}>{formData.mitraId}</strong>
           </div>
-          <div className="form-group">
-            <label>Name</label>
-            <input name="name" value={formData.name} onChange={handleChange} />
-          </div>
-          <div className="form-group">
-            <label>Vidhan Sabha</label>
-            <input name="vidhan_sabha" value={formData.vidhan_sabha} onChange={handleChange} />
-          </div>
-          <div className="form-group">
-            <label>Assigned Zone</label>
-            <input name="assigned_zone" value={formData.assigned_zone} onChange={handleChange} />
-          </div>
-          <div className="form-group">
-            <label>Status</label>
-            <select name="status" value={formData.status} onChange={handleChange}>
-              <option value="Approved">Approved</option>
-              <option value="Pending">Pending</option>
-              <option value="Cancelled">Cancelled</option>
-            </select>
-          </div>
-          <div className="modal-actions">
-            <button type="button" className="btn-danger" onClick={onClose}>
-              Cancel
-            </button>
-            <button type="submit" className="btn-primary">
-              {editing ? "Update Mitras" : "Add Mitras"}
-            </button>
-          </div>
-        </form>
+        )}
+
+        <SmartForm
+          sections={sections}
+          formData={formData}
+          onFieldChange={onFieldChange}
+          onSubmit={handleSubmit}
+          submitting={submitting}
+          submitLabel={editing ? "Update Mitra" : "Add Mitra"}
+          cancelLabel="Cancel"
+          onCancel={onClose}
+        />
       </div>
     </div>
   );
