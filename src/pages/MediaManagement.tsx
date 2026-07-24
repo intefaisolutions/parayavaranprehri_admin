@@ -1,93 +1,116 @@
-import React, { useState } from "react";
-import { Plus, Filter, Edit, Trash2, Eye } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { Plus, Filter, Edit, Trash2, Eye, Loader2, ExternalLink } from "lucide-react";
+import type { ColumnDef } from "@tanstack/react-table";
 import DataTable from "../components/DataTable";
 import MediaModal from "./modals/MediaModal";
+import type { MediaFormData } from "./modals/MediaModal";
 import DeleteConfirmModal from "./modals/DeleteConfirmModal";
+import { apiFetch } from "../utils/apiConfig";
 
 interface Media {
-  id: string;
-  mediaName: string;
+  _id: string;
+  name: string;
   mediaType: string;
-  fileSize: string;
-  uploadedBy: string;
-  uploadDate: string;
-  usedInModule: string;
+  url: string;
+  fileSize?: string;
+  uploadedBy?: string;
+  usedInModule?: string;
   status: string;
+  createdAt?: string;
 }
 
+const initialForm: MediaFormData = {
+  name: "",
+  mediaType: "Image",
+  url: "",
+  fileSize: "",
+  uploadedBy: "",
+  usedInModule: "",
+  status: "Active",
+};
+
 export const MediaView = () => {
-
-  const initialForm = {
-    id: "",
-    mediaName: "",
-    mediaType: "Image",
-    fileSize: "",
-    uploadedBy: "",
-    uploadDate: "",
-    usedInModule: "",
-    status: "Active",
-  };
-
-  const [mediaList, setMediaList] = useState<Media[]>(
-    Array.from({ length: 100 }, (_, i) => ({
-      id: `MED-${String(i + 1).padStart(3, "0")}`,
-      mediaName: `Media_${i + 1}.jpg`,
-      mediaType: i % 2 === 0 ? "Image" : "PDF",
-      fileSize: `${(i + 1) * 2} MB`,
-      uploadedBy: `Admin ${i % 5 + 1}`,
-      uploadDate: "2026-02-20",
-      usedInModule: i % 2 === 0 ? "News" : "Gallery",
-      status: i % 2 === 0 ? "Active" : "Inactive",
-    }))
-  );
+  const [mediaList, setMediaList] = useState<Media[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [formData, setFormData] = useState(initialForm);
+  const [formData, setFormData] = useState<MediaFormData>(initialForm);
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [mediaToDelete, setMediaToDelete] = useState<Media | null>(null);
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+  const loadMedia = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await apiFetch<Media[]>("/api/v1/media");
+      setMediaList(data || []);
+    } catch (err: any) {
+      setError(err.message || "Failed to load Media");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  useEffect(() => {
+    loadMedia();
+  }, []);
+
+  const handleFieldChange = (name: string, value: any) => {
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitting(true);
+    setError("");
 
-    if (editing) {
-      setMediaList((prev) =>
-        prev.map((item) =>
-          item.id === formData.id ? { ...item, ...formData } : item
-        )
-      );
-    } else {
-      setMediaList((prev) => [
-        {
-          ...formData,
-          id: formData.id,
-        },
-        ...prev,
-      ]);
+    const { _id, ...payload } = formData;
+
+    try {
+      if (editing && _id) {
+        await apiFetch(`/api/v1/media/${_id}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await apiFetch("/api/v1/media", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+      }
+      setShowModal(false);
+      await loadMedia();
+    } catch (err: any) {
+      setError(err.message || "Failed to save Media");
+    } finally {
+      setSubmitting(false);
     }
-
-    setShowModal(false);
   };
 
   const openAddModal = () => {
     setEditing(false);
+    setError("");
     setFormData(initialForm);
     setShowModal(true);
   };
 
   const openEditModal = (media: Media) => {
     setEditing(true);
-    setFormData(media);
+    setError("");
+    setFormData({
+      _id: media._id,
+      name: media.name,
+      mediaType: media.mediaType,
+      url: media.url,
+      fileSize: media.fileSize || "",
+      uploadedBy: media.uploadedBy || "",
+      usedInModule: media.usedInModule || "",
+      status: media.status,
+    });
     setShowModal(true);
   };
 
@@ -96,20 +119,22 @@ export const MediaView = () => {
     setShowDeleteModal(true);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!mediaToDelete) return;
-
-    setMediaList((prev) =>
-      prev.filter((item) => item.id !== mediaToDelete.id)
-    );
-
-    setShowDeleteModal(false);
-    setMediaToDelete(null);
+    try {
+      await apiFetch(`/api/v1/media/${mediaToDelete._id}`, { method: "DELETE" });
+      await loadMedia();
+    } catch (err: any) {
+      setError(err.message || "Failed to delete Media");
+    } finally {
+      setShowDeleteModal(false);
+      setMediaToDelete(null);
+    }
   };
 
   const columns: ColumnDef<Media>[] = [
     {
-      accessorKey: "mediaName",
+      accessorKey: "name",
       header: "Media Name",
       enableSorting: true,
     },
@@ -122,21 +147,25 @@ export const MediaView = () => {
       accessorKey: "fileSize",
       header: "File Size",
       enableSorting: true,
+      cell: ({ row }) => row.original.fileSize || "—",
     },
     {
       accessorKey: "uploadedBy",
       header: "Uploaded By",
       enableSorting: true,
+      cell: ({ row }) => row.original.uploadedBy || "—",
     },
     {
-      accessorKey: "uploadDate",
+      accessorKey: "createdAt",
       header: "Upload Date",
       enableSorting: true,
+      cell: ({ row }) => (row.original.createdAt ? row.original.createdAt.slice(0, 10) : "—"),
     },
     {
       accessorKey: "usedInModule",
       header: "Used In Module",
       enableSorting: true,
+      cell: ({ row }) => row.original.usedInModule || "—",
     },
     {
       accessorKey: "status",
@@ -144,9 +173,7 @@ export const MediaView = () => {
       cell: ({ row }) => (
         <span
           className={`status-badge ${
-            row.original.status === "Active"
-              ? "status-active"
-              : "status-inactive"
+            row.original.status === "Active" ? "status-active" : "status-inactive"
           }`}
         >
           {row.original.status}
@@ -157,18 +184,18 @@ export const MediaView = () => {
       header: "Actions",
       cell: ({ row }) => (
         <div style={{ display: "flex", gap: "8px" }}>
-          <button
+          <a
             className="icon-btn"
-            style={{ width: 28, height: 28 }}
+            style={{ width: 28, height: 28, display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+            href={row.original.url}
+            target="_blank"
+            rel="noreferrer"
+            title="Open file"
           >
-            <Eye size={14} />
-          </button>
+            <ExternalLink size={14} />
+          </a>
 
-          <button
-            className="icon-btn"
-            style={{ width: 28, height: 28 }}
-            onClick={() => openEditModal(row.original)}
-          >
+          <button className="icon-btn" style={{ width: 28, height: 28 }} onClick={() => openEditModal(row.original)}>
             <Edit size={14} />
           </button>
 
@@ -194,26 +221,35 @@ export const MediaView = () => {
           </div>
 
           <div style={{ display: "flex", gap: "12px" }}>
-            <button className="icon-btn">
+            <button className="icon-btn" title="Filter">
               <Filter size={18} />
             </button>
 
-            <button
-              className="btn-primary"
-              onClick={openAddModal}
-            >
+            <button className="btn-primary" onClick={openAddModal}>
               <Plus size={18} />
-              Add Media
+              Upload Media
             </button>
           </div>
         </div>
 
+        {error && (
+          <div style={{ background: "rgba(255, 61, 0, 0.1)", color: "#ff3d00", padding: "12px", borderRadius: "8px", marginBottom: "16px" }}>
+            {error}
+          </div>
+        )}
+
         <div className="card">
-          <DataTable
-            data={mediaList}
-            columns={columns}
-            searchPlaceholder="Search media name, type..."
-          />
+          {loading ? (
+            <div style={{ display: "flex", justifyContent: "center", padding: "40px" }}>
+              <Loader2 size={24} className="spin" />
+            </div>
+          ) : (
+            <DataTable
+              data={mediaList}
+              columns={columns}
+              searchPlaceholder="Search media name, type..."
+            />
+          )}
         </div>
       </div>
 
@@ -222,7 +258,9 @@ export const MediaView = () => {
         onClose={() => setShowModal(false)}
         editing={editing}
         formData={formData}
-        handleChange={handleChange}
+        submitting={submitting}
+        error={error}
+        onFieldChange={handleFieldChange}
         handleSubmit={handleSubmit}
       />
 
@@ -233,7 +271,8 @@ export const MediaView = () => {
           setMediaToDelete(null);
         }}
         onConfirm={handleDelete}
-        personName={mediaToDelete?.mediaName}
+        personName={mediaToDelete?.name}
+        title="Delete Media"
       />
     </>
   );

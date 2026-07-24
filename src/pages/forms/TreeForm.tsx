@@ -1,54 +1,80 @@
- import React, { useState, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
-import { Search } from "lucide-react";
-import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
-import "leaflet/dist/leaflet.css";
-import L from "leaflet";
-
-// Fix for leaflet marker icon in Vite
-import icon from 'leaflet/dist/images/marker-icon.png';
-import iconShadow from 'leaflet/dist/images/marker-shadow.png';
-import iconRetina from 'leaflet/dist/images/marker-icon-2x.png';
-
-let DefaultIcon = L.icon({
-    iconUrl: icon,
-    shadowUrl: iconShadow,
-    iconRetinaUrl: iconRetina,
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    tooltipAnchor: [16, -28],
-    shadowSize: [41, 41]
-});
-L.Marker.prototype.options.icon = DefaultIcon;
+import React, { useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import {
+  Building2,
+  Car,
+  Hash,
+  Landmark,
+  Leaf,
+  MapPin,
+  Navigation,
+  Ruler,
+  Search,
+  ShieldCheck,
+  Sprout,
+  StickyNote,
+  User,
+} from "lucide-react";
+import { apiFetch } from "../../utils/apiConfig";
+import { SmartForm } from "../../components/form/SmartForm";
+import type { FormSectionConfig } from "../../components/form/SmartForm";
+import { FormPageHeader } from "../../components/form/FormPageHeader";
 
 export interface TreesFormData {
   _id?: string;
   treeId?: string;
   treeName: string;
   species: string;
-  category: string;
-  phone: string;
-  userId?: string;
+  scientificName: string;
+  userId: string;
+  userName: string;
+  mobile: string;
   vehicleNumber: string;
+  policyNumber: string;
+  insuranceStatus: string;
   plantedDate: string;
+  plantedBy: string;
   state: string;
   district: string;
-  zone: string;
-  address: string;
-  latitude: number | '';
-  longitude: number | '';
+  city: string;
+  location: string;
+  latitude: number | "";
+  longitude: number | "";
   status: string;
+  height: number | "";
   remarks: string;
+  image: string;
 }
 
-const LocationPicker = ({ position, setPosition }: { position: [number, number], setPosition: (pos: [number, number]) => void }) => {
-  useMapEvents({
-    click(e) {
-      setPosition([e.latlng.lat, e.latlng.lng]);
-    },
-  });
-  return <Marker position={position} />;
+const emptyForm: TreesFormData = {
+  treeName: "",
+  species: "",
+  scientificName: "",
+  userId: "",
+  userName: "",
+  mobile: "",
+  vehicleNumber: "",
+  policyNumber: "",
+  insuranceStatus: "NOT_INSURED",
+  plantedDate: new Date().toISOString().split("T")[0],
+  plantedBy: "",
+  state: "",
+  district: "",
+  city: "",
+  location: "",
+  latitude: "",
+  longitude: "",
+  status: "PLANTED",
+  height: "",
+  remarks: "",
+  image: "",
+};
+
+const toDateInputValue = (value: any): string => {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toISOString().split("T")[0];
 };
 
 export const TreeForm = () => {
@@ -58,200 +84,221 @@ export const TreeForm = () => {
   const editTree = location.state?.tree;
   const isEditing = !!editTree;
 
-  const initialForm: TreesFormData = {
-    treeName: "",
-    species: "",
-    category: "",
-    phone: "",
-    vehicleNumber: "",
-    plantedDate: new Date().toISOString().split('T')[0],
-    state: "",
-    district: "",
-    zone: "",
-    address: "",
-    latitude: '',
-    longitude: '',
-    status: "PLANTED",
-    remarks: "",
-  };
-
-  const [formData, setFormData] = useState<TreesFormData>(editTree || initialForm);
-  const [vehicles, setVehicles] = useState<string[]>([]);
-  const [searching, setSearching] = useState(false);
-
-  // Map state
-  const defaultCenter: [number, number] = [22.7196, 75.8577]; // Indore
-  const [mapPosition, setMapPosition] = useState<[number, number]>(
-    formData.latitude && formData.longitude 
-      ? [Number(formData.latitude), Number(formData.longitude)] 
-      : defaultCenter
+  const [formData, setFormData] = useState<TreesFormData>(
+    editTree
+      ? {
+          ...emptyForm,
+          ...editTree,
+          plantedDate: toDateInputValue(editTree.plantedDate) || emptyForm.plantedDate,
+          latitude: editTree.latitude ?? "",
+          longitude: editTree.longitude ?? "",
+          height: editTree.height ?? "",
+        }
+      : emptyForm
   );
 
-  // Sync formData changes to map if edited manually
-  useEffect(() => {
-    if (formData.latitude && formData.longitude) {
-      setMapPosition([Number(formData.latitude), Number(formData.longitude)]);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [searchMessage, setSearchMessage] = useState("");
+
+  const handleFieldChange = (name: string, value: any) => {
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSearchUser = async () => {
+    const mobile = formData.mobile.trim();
+    if (mobile.length < 10) {
+      setSearchMessage("Enter a valid 10-digit mobile number to search.");
+      return;
     }
-  }, [formData.latitude, formData.longitude]);
-
-  const handleMapClick = (pos: [number, number]) => {
-    setMapPosition(pos);
-    // Manually trigger change event for form data
-    setFormData(prev => ({ ...prev, latitude: pos[0], longitude: pos[1] }));
-  };
-
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
-  ) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
-  };
-
-  // Mock search user and vehicles
-  const handleSearchUser = () => {
-    if (formData.phone.length >= 10) {
-      setSearching(true);
-      setTimeout(() => {
-        setVehicles(["MP09ZK5863", "MP04AB1234"]);
-        setSearching(false);
-      }, 500);
+    setSearching(true);
+    setSearchMessage("");
+    try {
+      const result = await apiFetch<{ items: any[] }>(
+        `/api/v1/users?search=${encodeURIComponent(mobile)}&limit=5`
+      );
+      const items = result?.items || [];
+      const match = items.find((u: any) => u.phone === mobile) || items[0];
+      if (match) {
+        const fullName = [match.firstName, match.lastName].filter(Boolean).join(" ");
+        setFormData((prev) => ({
+          ...prev,
+          userId: match._id,
+          userName: fullName || prev.userName,
+        }));
+        setSearchMessage(`Matched user: ${fullName || match.email || match._id}`);
+      } else {
+        setSearchMessage("No matching user found. Enter User ID and Name manually below.");
+      }
+    } catch (err: any) {
+      setSearchMessage(err.message || "Search failed. Enter User ID and Name manually below.");
+    } finally {
+      setSearching(false);
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Simulate passing the result back via navigation state or API
-    navigate("/trees", { state: { savedTree: formData, isEditing } });
+    setError("");
+
+    if (!formData.mobile.trim()) {
+      setError("Owner mobile number is required");
+      return;
+    }
+    if (!formData.userId.trim() || !formData.userName.trim()) {
+      setError("User ID and User Name are required — search by mobile or enter manually");
+      return;
+    }
+
+    setSubmitting(true);
+
+    const { _id, treeId, ...rest } = formData as any;
+    const payload = {
+      ...rest,
+      latitude: formData.latitude === "" ? undefined : Number(formData.latitude),
+      longitude: formData.longitude === "" ? undefined : Number(formData.longitude),
+      height: formData.height === "" ? undefined : Number(formData.height),
+    };
+
+    try {
+      if (isEditing && editTree._id) {
+        await apiFetch(`/api/v1/trees/${editTree._id}`, {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await apiFetch("/api/v1/trees", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+      }
+      navigate("/trees");
+    } catch (err: any) {
+      setError(err.message || "Failed to save tree");
+    } finally {
+      setSubmitting(false);
+    }
   };
+
+  const sections: FormSectionConfig[] = [
+    {
+      title: "Tree Details",
+      description: "Identity and health information for this tree.",
+      icon: Leaf,
+      fields: [
+        { name: "treeName", label: "Tree Name", type: "text", icon: Leaf, required: true, placeholder: "e.g., Neem" },
+        { name: "species", label: "Species", type: "text", icon: Sprout, placeholder: "Local species name" },
+        { name: "scientificName", label: "Scientific Name", type: "text", icon: Sprout, placeholder: "e.g., Azadirachta indica" },
+        { name: "plantedDate", label: "Plantation Date", type: "date", icon: Hash },
+        {
+          name: "status",
+          label: "Status",
+          type: "select",
+          icon: Sprout,
+          options: [
+            { label: "Planted", value: "PLANTED" },
+            { label: "Healthy", value: "HEALTHY" },
+            { label: "Growing", value: "GROWING" },
+            { label: "Damaged", value: "DAMAGED" },
+            { label: "Dead", value: "DEAD" },
+          ],
+        },
+        { name: "height", label: "Height (m)", type: "number", icon: Ruler },
+        { name: "image", label: "Tree Image", type: "image", icon: Leaf, uploadCategory: "trees", span: 2 },
+        { name: "remarks", label: "Remarks", type: "textarea", icon: StickyNote, span: 2, placeholder: "Any additional details or observations..." },
+      ],
+    },
+    {
+      title: "Owner Details",
+      description: "Who this tree is registered to.",
+      icon: User,
+      fields: [
+        { name: "userId", label: "User ID", type: "text", icon: Hash, required: true, helpText: "Auto-filled when a matching user is found by mobile search." },
+        { name: "userName", label: "User Name", type: "text", icon: User, required: true },
+        { name: "plantedBy", label: "Planted By", type: "text", icon: User, placeholder: "Mitra / volunteer name" },
+      ],
+    },
+    {
+      title: "Vehicle & Insurance",
+      description: "Optional vehicle and insurance linkage for this plantation record.",
+      icon: Car,
+      fields: [
+        { name: "vehicleNumber", label: "Vehicle Number", type: "text", icon: Car, placeholder: "e.g., MP09ZK5863" },
+        { name: "policyNumber", label: "Policy Number", type: "text", icon: ShieldCheck },
+        {
+          name: "insuranceStatus",
+          label: "Insurance Status",
+          type: "select",
+          icon: ShieldCheck,
+          options: [
+            { label: "Active", value: "ACTIVE" },
+            { label: "Expired", value: "EXPIRED" },
+            { label: "Not Insured", value: "NOT_INSURED" },
+          ],
+        },
+      ],
+    },
+    {
+      title: "Location",
+      description: "Where this tree was planted.",
+      icon: MapPin,
+      fields: [
+        { name: "state", label: "State", type: "text", icon: Building2 },
+        { name: "district", label: "District", type: "text", icon: Landmark },
+        { name: "city", label: "City", type: "text", icon: Building2 },
+        { name: "location", label: "Address / Location", type: "text", icon: MapPin, span: 2 },
+        { name: "latitude", label: "Latitude", type: "number", icon: Navigation },
+        { name: "longitude", label: "Longitude", type: "number", icon: Navigation },
+      ],
+    },
+  ];
 
   return (
     <div className="dashboard-area">
-      <div className="page-header">
-        <div className="page-title">
-          <h1>{isEditing ? "Edit Tree" : "Register Tree"}</h1>
-          <p>Provide the details of the tree planted and its location.</p>
+      <FormPageHeader
+        icon={Leaf}
+        title={isEditing ? "Edit Tree" : "Register Tree"}
+        subtitle="Provide the details of the tree planted, its owner, and its location."
+        onBack={() => navigate("/trees")}
+      />
+
+      <div className="card" style={{ padding: "20px", marginBottom: "16px" }}>
+        <div className="form-group" style={{ marginBottom: 0 }}>
+          <label>
+            Search Owner by Mobile Number <span style={{ color: "red" }}>*</span>
+          </label>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <input
+              type="text"
+              value={formData.mobile}
+              onChange={(e) => handleFieldChange("mobile", e.target.value)}
+              placeholder="Enter owner's 10-digit mobile number"
+              style={{ flex: 1 }}
+            />
+            <button type="button" className="btn-secondary" onClick={handleSearchUser} disabled={searching}>
+              <Search size={16} /> {searching ? "Searching..." : "Search"}
+            </button>
+          </div>
+          {searchMessage && <span className="ff-help">{searchMessage}</span>}
         </div>
       </div>
 
-      <div className="card" style={{ padding: '24px' }}>
-        <form onSubmit={handleSubmit} className="modal-form">
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-            
-            {/* LEFT COLUMN */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div className="form-group">
-                <label>Tree Name <span style={{color: 'red'}}>*</span></label>
-                <input type="text" name="treeName" value={formData.treeName} onChange={handleChange} required placeholder="Enter tree name (e.g., Neem)" />
-              </div>
-              <div className="form-group">
-                <label>Species <span style={{color: 'red'}}>*</span></label>
-                <input type="text" name="species" value={formData.species} onChange={handleChange} required placeholder="Enter botanical or local species name" />
-              </div>
-              <div className="form-group">
-                <label>Category</label>
-                <select name="category" value={formData.category} onChange={handleChange}>
-                  <option value="">Select Category</option>
-                  <option value="Fruit">Fruit</option>
-                  <option value="Shade">Shade</option>
-                  <option value="Medicinal">Medicinal</option>
-                  <option value="Ornamental">Ornamental</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Plantation Date</label>
-                <input type="date" name="plantedDate" value={formData.plantedDate} onChange={handleChange} />
-              </div>
-              <div className="form-group">
-                <label>Search User by Mobile Number</label>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <input type="text" name="phone" value={formData.phone} onChange={handleChange} placeholder="Enter user's 10-digit mobile number" style={{ flex: 1 }} />
-                  <button type="button" className="btn-secondary" onClick={handleSearchUser} disabled={searching}>
-                    <Search size={16} /> {searching ? 'Searching...' : 'Search'}
-                  </button>
-                </div>
-              </div>
-              {vehicles.length > 0 && (
-                <div className="form-group">
-                  <label>Select User's Vehicle</label>
-                  <select name="vehicleNumber" value={formData.vehicleNumber} onChange={handleChange}>
-                    <option value="">-- Select Vehicle --</option>
-                    {vehicles.map((v) => (
-                      <option key={v} value={v}>{v}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              <div className="form-group">
-                <label>Status</label>
-                <select name="status" value={formData.status} onChange={handleChange}>
-                  <option value="PLANTED">Planted</option>
-                  <option value="HEALTHY">Healthy</option>
-                  <option value="GROWING">Growing</option>
-                  <option value="DAMAGED">Damaged</option>
-                  <option value="DEAD">Dead</option>
-                </select>
-              </div>
-            </div>
-
-            {/* RIGHT COLUMN */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div className="form-group">
-                <label>State</label>
-                <input type="text" name="state" value={formData.state} onChange={handleChange} placeholder="Enter State" />
-              </div>
-              <div className="form-group">
-                <label>District & Zone</label>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <input type="text" name="district" value={formData.district} onChange={handleChange} placeholder="District" style={{ flex: 1 }} />
-                  <input type="text" name="zone" value={formData.zone} onChange={handleChange} placeholder="Zone" style={{ flex: 1 }} />
-                </div>
-              </div>
-              <div className="form-group">
-                <label>Address</label>
-                <input type="text" name="address" value={formData.address} onChange={handleChange} placeholder="Enter full address" />
-              </div>
-              
-              <div className="form-group" style={{ height: '350px', display: 'flex', flexDirection: 'column' }}>
-                <label>Pick Location on Map</label>
-                <div style={{ flex: 1, borderRadius: '8px', overflow: 'hidden', border: '1px solid #e0e0e0', marginBottom: '8px' }}>
-                  <MapContainer center={mapPosition} zoom={13} scrollWheelZoom={false} style={{ height: '100%', width: '100%' }}>
-                    <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                    <LocationPicker position={mapPosition} setPosition={handleMapClick} />
-                  </MapContainer>
-                </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ fontSize: '12px', color: '#666' }}>Latitude</label>
-                    <input type="number" step="any" name="latitude" value={formData.latitude} onChange={handleChange} placeholder="Lat" />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ fontSize: '12px', color: '#666' }}>Longitude</label>
-                    <input type="number" step="any" name="longitude" value={formData.longitude} onChange={handleChange} placeholder="Lng" />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* FULL WIDTH */}
-            <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-              <label>Remarks</label>
-              <textarea name="remarks" value={formData.remarks} onChange={handleChange} rows={3} placeholder="Any additional details or observations..." style={{ width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid #e0e0e0', resize: 'vertical' }} />
-            </div>
-          </div>
-
-          <div className="modal-actions" style={{ marginTop: '32px', borderTop: '1px solid #eee', paddingTop: '20px', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-            <button type="button" className="btn-danger" onClick={() => navigate("/trees")}>
-              Cancel
-            </button>
-            <button type="submit" className="btn-primary">
-              {isEditing ? "Update Tree" : "Register Tree"}
-            </button>
-          </div>
-        </form>
+      <div className="card">
+        <SmartForm
+          sections={sections}
+          formData={formData}
+          onFieldChange={handleFieldChange}
+          onSubmit={handleSubmit}
+          submitting={submitting}
+          error={error}
+          submitLabel={isEditing ? "Update Tree" : "Register Tree"}
+          cancelLabel="Cancel"
+          onCancel={() => navigate("/trees")}
+        />
       </div>
     </div>
   );
 };
+
+export default TreeForm;

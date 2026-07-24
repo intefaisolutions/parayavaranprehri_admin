@@ -1,109 +1,121 @@
-import React, { useState } from "react";
-import { Plus, Filter, Edit, Trash2, Eye } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { Plus, Filter, Edit, Trash2, Eye, Loader2 } from "lucide-react";
+import type { ColumnDef } from "@tanstack/react-table";
 import DataTable from "../components/DataTable";
 import MapManagementModal from "./modals/MapManagementModal";
+import type { MapFormData } from "./modals/MapManagementModal";
 import DeleteConfirmModal from "./modals/DeleteConfirmModal";
+import { apiFetch } from "../utils/apiConfig";
 
 interface MapRecord {
-  id: string;
+  _id: string;
   locationName: string;
   treeCount: number;
-  latitude: string;
-  longitude: string;
-  plantationArea: string;
-  addedBy: string;
-  lastUpdated: string;
+  latitude?: number;
+  longitude?: number;
+  plantationArea?: string;
+  addedBy?: string;
   status: string;
+  updatedAt?: string;
 }
 
-export const MapView = () => {
-  const initialForm = {
-    id: "",
-    locationName: "",
-    treeCount: "",
-    latitude: "",
-    longitude: "",
-    plantationArea: "",
-    addedBy: "",
-    lastUpdated: "",
-    status: "Active",
-  };
+const initialForm: MapFormData = {
+  locationName: "",
+  treeCount: "",
+  latitude: "",
+  longitude: "",
+  plantationArea: "",
+  addedBy: "",
+  status: "Active",
+};
 
-  const [maps, setMaps] = useState<MapRecord[]>(
-    Array.from({ length: 100 }, (_, i) => ({
-      id: `MAP-${String(i + 1).padStart(3, "0")}`,
-      locationName: `Plantation Area ${i + 1}`,
-      treeCount: (i + 1) * 250,
-      latitude: "23.2599",
-      longitude: "77.4126",
-      plantationArea: `${(i + 1) * 2} Acres`,
-      addedBy: `Admin ${i + 1}`,
-      lastUpdated: "2026-02-10",
-      status: i % 2 === 0 ? "Active" : "Inactive",
-    }))
-  );
+export const MapView = () => {
+  const [maps, setMaps] = useState<MapRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [formData, setFormData] = useState(initialForm);
+  const [formData, setFormData] = useState<MapFormData>(initialForm);
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [mapToDelete, setMapToDelete] = useState<MapRecord | null>(null);
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+  const loadMaps = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await apiFetch<MapRecord[]>("/api/v1/maps");
+      setMaps(data || []);
+    } catch (err: any) {
+      setError(err.message || "Failed to load map records");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  useEffect(() => {
+    loadMaps();
+  }, []);
+
+  const handleFieldChange = (name: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitting(true);
+    setError("");
 
-    if (editing) {
-      setMaps((prev) =>
-        prev.map((item) =>
-          item.id === formData.id
-            ? {
-                ...formData,
-                treeCount: Number(formData.treeCount),
-              }
-            : item
-        )
-      );
-    } else {
-      setMaps((prev) => [
-        {
-          id: formData.id,
-          locationName: formData.locationName,
-          treeCount: Number(formData.treeCount),
-          latitude: formData.latitude,
-          longitude: formData.longitude,
-          plantationArea: formData.plantationArea,
-          addedBy: formData.addedBy,
-          lastUpdated: formData.lastUpdated,
-          status: formData.status,
-        },
-        ...prev,
-      ]);
+    const { _id, ...rest } = formData;
+    const payload = {
+      ...rest,
+      treeCount: rest.treeCount === "" ? undefined : Number(rest.treeCount),
+      latitude: rest.latitude === "" ? undefined : Number(rest.latitude),
+      longitude: rest.longitude === "" ? undefined : Number(rest.longitude),
+    };
+
+    try {
+      if (editing && _id) {
+        await apiFetch(`/api/v1/maps/${_id}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await apiFetch("/api/v1/maps", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+      }
+      setShowModal(false);
+      await loadMaps();
+    } catch (err: any) {
+      setError(err.message || "Failed to save map record");
+    } finally {
+      setSubmitting(false);
     }
-
-    setShowModal(false);
   };
 
   const openAddModal = () => {
     setEditing(false);
+    setError("");
     setFormData(initialForm);
     setShowModal(true);
   };
 
   const openEditModal = (item: MapRecord) => {
     setEditing(true);
+    setError("");
     setFormData({
-      ...item,
-      treeCount: String(item.treeCount),
+      _id: item._id,
+      locationName: item.locationName,
+      treeCount: String(item.treeCount ?? 0),
+      latitude: item.latitude !== undefined ? String(item.latitude) : "",
+      longitude: item.longitude !== undefined ? String(item.longitude) : "",
+      plantationArea: item.plantationArea || "",
+      addedBy: item.addedBy || "",
+      status: item.status,
     });
     setShowModal(true);
   };
@@ -113,15 +125,17 @@ export const MapView = () => {
     setShowDeleteModal(true);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!mapToDelete) return;
-
-    setMaps((prev) =>
-      prev.filter((item) => item.id !== mapToDelete.id)
-    );
-
-    setShowDeleteModal(false);
-    setMapToDelete(null);
+    try {
+      await apiFetch(`/api/v1/maps/${mapToDelete._id}`, { method: "DELETE" });
+      await loadMaps();
+    } catch (err: any) {
+      setError(err.message || "Failed to delete map record");
+    } finally {
+      setShowDeleteModal(false);
+      setMapToDelete(null);
+    }
   };
 
   const columns: ColumnDef<MapRecord>[] = [
@@ -156,9 +170,11 @@ export const MapView = () => {
       enableSorting: true,
     },
     {
-      accessorKey: "lastUpdated",
+      accessorKey: "updatedAt",
       header: "Last Updated",
       enableSorting: true,
+      cell: ({ row }) =>
+        row.original.updatedAt ? new Date(row.original.updatedAt).toLocaleDateString() : "-",
     },
     {
       accessorKey: "status",
@@ -166,23 +182,19 @@ export const MapView = () => {
       cell: ({ row }) => (
         <span
           className={`status-badge ${
-            row.original.status === "Active"
-              ? "status-active"
-              : "status-inactive"
+            row.original.status === "Active" ? "status-active" : "status-inactive"
           }`}
         >
           {row.original.status}
         </span>
       ),
+      enableSorting: false,
     },
     {
       header: "Actions",
       cell: ({ row }) => (
         <div style={{ display: "flex", gap: "8px" }}>
-          <button
-            className="icon-btn"
-            style={{ width: 28, height: 28 }}
-          >
+          <button className="icon-btn" style={{ width: 28, height: 28 }}>
             <Eye size={14} />
           </button>
 
@@ -203,6 +215,7 @@ export const MapView = () => {
           </button>
         </div>
       ),
+      enableSorting: false,
     },
   ];
 
@@ -212,9 +225,7 @@ export const MapView = () => {
         <div className="page-header">
           <div className="page-title">
             <h1>Map Management</h1>
-            <p>
-              Manage plantation locations, tree mapping and geographical records.
-            </p>
+            <p>Manage plantation locations, tree mapping and geographical records.</p>
           </div>
 
           <div style={{ display: "flex", gap: "12px" }}>
@@ -222,22 +233,39 @@ export const MapView = () => {
               <Filter size={18} />
             </button>
 
-            <button
-              className="btn-primary"
-              onClick={openAddModal}
-            >
+            <button className="btn-primary" onClick={openAddModal}>
               <Plus size={18} />
               Add Map Record
             </button>
           </div>
         </div>
 
+        {error && (
+          <div
+            style={{
+              background: "rgba(255, 61, 0, 0.1)",
+              color: "#ff3d00",
+              padding: "12px",
+              borderRadius: "8px",
+              marginBottom: "16px",
+            }}
+          >
+            {error}
+          </div>
+        )}
+
         <div className="card">
-          <DataTable
-            data={maps}
-            columns={columns}
-            searchPlaceholder="Search location, added by..."
-          />
+          {loading ? (
+            <div style={{ display: "flex", justifyContent: "center", padding: "40px" }}>
+              <Loader2 size={24} className="spin" />
+            </div>
+          ) : (
+            <DataTable
+              data={maps}
+              columns={columns}
+              searchPlaceholder="Search location, added by..."
+            />
+          )}
         </div>
       </div>
 
@@ -246,7 +274,9 @@ export const MapView = () => {
         onClose={() => setShowModal(false)}
         editing={editing}
         formData={formData}
-        handleChange={handleChange}
+        submitting={submitting}
+        error={error}
+        onFieldChange={handleFieldChange}
         handleSubmit={handleSubmit}
       />
 
@@ -258,6 +288,7 @@ export const MapView = () => {
         }}
         onConfirm={handleDelete}
         personName={mapToDelete?.locationName}
+        title="Delete Map Record"
       />
     </>
   );

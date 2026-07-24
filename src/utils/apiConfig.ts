@@ -22,17 +22,74 @@ export const getApiUrl = (endpoint: string): string => {
   return `${baseUrl}/${path}`;
 };
 
+// Endpoints that must never trigger a token-refresh-and-retry cycle
+// (refreshing itself, or unauthenticated auth flows).
+const AUTH_ENDPOINTS_TO_SKIP_REFRESH = [
+  '/api/v1/auth/refresh',
+  '/api/v1/auth/login',
+  '/api/v1/auth/otp/request',
+  '/api/v1/auth/otp/verify',
+];
+
+let refreshPromise: Promise<string | null> | null = null;
+
+/** Calls the refresh endpoint once, sharing the in-flight promise across
+ * concurrent 401s so we don't fire multiple refresh requests at once. */
+const getRefreshedAccessToken = (): Promise<string | null> => {
+  if (!refreshPromise) {
+    refreshPromise = (async () => {
+      const refreshToken = localStorage.getItem('refreshToken');
+      if (!refreshToken) return null;
+      try {
+        const res = await fetch(getApiUrl('/api/v1/auth/refresh'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken }),
+        });
+        if (!res.ok) return null;
+        const body = await res.json().catch(() => null);
+        const data = body?.data ?? body;
+        if (!data?.accessToken) return null;
+        localStorage.setItem('accessToken', data.accessToken);
+        if (data.refreshToken) localStorage.setItem('refreshToken', data.refreshToken);
+        return data.accessToken as string;
+      } catch {
+        return null;
+      }
+    })().finally(() => {
+      refreshPromise = null;
+    });
+  }
+  return refreshPromise;
+};
+
+/** Clears the session and sends the user back to the login screen. */
+const forceLogout = () => {
+  localStorage.removeItem('accessToken');
+  localStorage.removeItem('refreshToken');
+  localStorage.removeItem('user');
+  if (window.location.pathname !== '/login') {
+    window.location.href = '/login';
+  }
+};
+
 /**
  * Wrapper around fetch that targets the API base URL, attaches the
  * Authorization header (from localStorage) and JSON content-type, and
  * throws a readable error when the response is not ok.
+ *
+ * If the access token has expired (401), it transparently refreshes it
+ * using the stored refresh token and retries the request once. If the
+ * refresh itself fails, the session is cleared and the user is redirected
+ * to the login page instead of looping on repeated 401s.
  *
  * @param endpoint - The API endpoint (e.g., '/api/v1/mitras')
  * @param options - Standard fetch options (method, body, etc.)
  */
 export const apiFetch = async <T = any>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  _isRetry = false
 ): Promise<T> => {
   const token = localStorage.getItem('accessToken');
 
@@ -49,6 +106,18 @@ export const apiFetch = async <T = any>(
   const body = isJson ? await res.json().catch(() => null) : null;
 
   if (!res.ok) {
+    if (
+      res.status === 401 &&
+      !_isRetry &&
+      !AUTH_ENDPOINTS_TO_SKIP_REFRESH.some((skip) => endpoint.includes(skip))
+    ) {
+      const newToken = await getRefreshedAccessToken();
+      if (newToken) {
+        return apiFetch<T>(endpoint, options, true);
+      }
+      forceLogout();
+    }
+
     const message = body?.message || body?.error || `Request failed (${res.status})`;
     throw new Error(Array.isArray(message) ? message.join(', ') : message);
   }
@@ -70,7 +139,8 @@ export interface UploadResult {
  */
 export const apiUpload = async (
   file: File,
-  category: 'users' | 'certificates' | 'trees' | 'documents' | 'general' = 'general'
+  category: 'users' | 'certificates' | 'trees' | 'documents' | 'general' = 'general',
+  _isRetry = false
 ): Promise<UploadResult> => {
   const token = localStorage.getItem('accessToken');
   const formData = new FormData();
@@ -88,6 +158,14 @@ export const apiUpload = async (
   const body = isJson ? await res.json().catch(() => null) : null;
 
   if (!res.ok) {
+    if (res.status === 401 && !_isRetry) {
+      const newToken = await getRefreshedAccessToken();
+      if (newToken) {
+        return apiUpload(file, category, true);
+      }
+      forceLogout();
+    }
+
     const message = body?.message || body?.error || `Upload failed (${res.status})`;
     throw new Error(Array.isArray(message) ? message.join(', ') : message);
   }

@@ -839,6 +839,46 @@ button {
   cursor: wait;
 }
 
+.ff-gallery-url-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.ff-gallery-url-input {
+  flex: 1;
+  padding: 9px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+  outline: none;
+  color: var(--text-primary);
+  transition: all 0.2s ease;
+}
+
+.ff-gallery-url-input:focus {
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 4px var(--accent-glow);
+  background: #fff;
+}
+
+.ff-gallery-url-add {
+  padding: 0 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background: rgba(43, 150, 79, 0.06);
+  color: var(--accent-color);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ff-gallery-url-add:hover {
+  background: rgba(43, 150, 79, 0.14);
+}
+
 .ff-tags {
   display: flex;
   flex-wrap: wrap;

@@ -73,6 +73,7 @@ const SmartField: React.FC<SmartFieldProps> = ({ field, value, onChange }) => {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [tagDraft, setTagDraft] = useState("");
+  const [galleryUrlDraft, setGalleryUrlDraft] = useState("");
 
   const handle = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -116,6 +117,25 @@ const SmartField: React.FC<SmartFieldProps> = ({ field, value, onChange }) => {
   const removeGalleryItem = (index: number) => {
     const current: string[] = Array.isArray(value) ? value : [];
     onChange(name, current.filter((_, i) => i !== index));
+  };
+
+  const addGalleryUrl = (raw: string) => {
+    const url = raw.trim();
+    if (!url) return;
+    const current: string[] = Array.isArray(value) ? value : [];
+    if (current.includes(url)) {
+      setGalleryUrlDraft("");
+      return;
+    }
+    onChange(name, [...current, url]);
+    setGalleryUrlDraft("");
+  };
+
+  const handleGalleryUrlKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      addGalleryUrl(galleryUrlDraft);
+    }
   };
 
   const addTag = (raw: string) => {
@@ -249,6 +269,20 @@ const SmartField: React.FC<SmartFieldProps> = ({ field, value, onChange }) => {
               <span>{uploading ? "Uploading..." : "Add"}</span>
               <input type="file" accept="image/*" multiple hidden onChange={handleGalleryFileChange} disabled={uploading} />
             </label>
+          </div>
+          <div className="ff-gallery-url-row">
+            <input
+              type="url"
+              className="ff-gallery-url-input"
+              value={galleryUrlDraft}
+              onChange={(e) => setGalleryUrlDraft(e.target.value)}
+              onKeyDown={handleGalleryUrlKeyDown}
+              placeholder="Or paste an image URL and press Enter..."
+              disabled={disabled}
+            />
+            <button type="button" className="ff-gallery-url-add" onClick={() => addGalleryUrl(galleryUrlDraft)}>
+              Add
+            </button>
           </div>
         </div>
       ) : type === "tags" ? (

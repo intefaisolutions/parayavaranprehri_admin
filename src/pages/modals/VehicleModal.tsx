@@ -1,15 +1,25 @@
 import React from "react";
-import { X } from "lucide-react";
+import { X, Hash, Car, Fuel, ShieldCheck } from "lucide-react";
+import { SmartForm } from "../../components/form/SmartForm";
+import type { FormSectionConfig } from "../../components/form/SmartForm";
+
+export interface VehicleFormData {
+  _id?: string;
+  plate: string;
+  name: string;
+  vhId: string;
+  fuel: string;
+  insuranceId?: string;
+}
 
 interface VehicleModalProps {
   isOpen: boolean;
   onClose: () => void;
   editing: boolean;
-  formData: any;
-  handleChange: (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => void;
-  handleSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
+  formData: VehicleFormData;
+  submitting?: boolean;
+  onFieldChange: (name: string, value: string) => void;
+  handleSubmit: (e: React.FormEvent) => void;
 }
 
 const VehicleModal: React.FC<VehicleModalProps> = ({
@@ -17,114 +27,69 @@ const VehicleModal: React.FC<VehicleModalProps> = ({
   onClose,
   editing,
   formData,
-  handleChange,
+  submitting,
+  onFieldChange,
   handleSubmit,
 }) => {
   if (!isOpen) return null;
 
+  const sections: FormSectionConfig[] = [
+    {
+      title: "Vehicle Details",
+      description: "Core identity details for this vehicle.",
+      icon: Car,
+      fields: [
+        { name: "plate", label: "Plate Number", type: "text", icon: Hash, required: true, span: 2 },
+        { name: "name", label: "Vehicle Name", type: "text", icon: Car, required: true },
+        { name: "vhId", label: "Vehicle ID", type: "text", icon: Hash, required: true },
+      ],
+    },
+    {
+      title: "Fuel & Insurance",
+      icon: Fuel,
+      fields: [
+        {
+          name: "fuel",
+          label: "Fuel Type",
+          type: "select",
+          icon: Fuel,
+          required: true,
+          options: [
+            { label: "Petrol", value: "Petrol" },
+            { label: "Diesel", value: "Diesel" },
+            { label: "CNG", value: "CNG" },
+            { label: "Electric", value: "Electric" },
+            { label: "Other", value: "Other" },
+          ],
+        },
+        { name: "insuranceId", label: "Insurance ID", type: "text", icon: ShieldCheck },
+      ],
+    },
+  ];
+
   return (
     <div className="modal-overlay">
-      <div className="modal">
+      <div className="modal" style={{ width: 640 }}>
         <div className="modal-header">
           <h2>{editing ? "Edit Vehicle" : "Add Vehicle"}</h2>
-
           <button className="icon-btn" onClick={onClose}>
             <X size={18} />
           </button>
         </div>
 
-        <form className="modal-form" onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label>Vehicle Number</label>
-            <input
-              name="vehicleNumber"
-              value={formData.vehicleNumber}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Vehicle Type</label>
-            <select
-              name="vehicleType"
-              value={formData.vehicleType}
-              onChange={handleChange}
-            >
-              <option value="">Select Type</option>
-              <option>Car</option>
-              <option>Bike</option>
-              <option>Truck</option>
-            </select>
-          </div>
-
-          <div className="form-group">
-            <label>Owner Name</label>
-            <input
-              name="ownerName"
-              value={formData.ownerName}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Owner Phone</label>
-            <input
-              name="ownerPhone"
-              value={formData.ownerPhone}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Trees Assigned</label>
-            <input
-              type="number"
-              name="treesAssigned"
-              value={formData.treesAssigned}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Approval Status</label>
-            <select
-              name="approvalStatus"
-              value={formData.approvalStatus}
-              onChange={handleChange}
-            >
-              <option>Pending</option>
-              <option>Approved</option>
-              <option>Rejected</option>
-            </select>
-          </div>
-
-          <div className="form-group">
-            <label>Registration Date</label>
-            <input
-              type="date"
-              name="registrationDate"
-              value={formData.registrationDate}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="modal-actions">
-            <button
-              type="button"
-              className="btn-danger"
-              onClick={onClose}
-            >
-              Cancel
-            </button>
-
-            <button type="submit" className="btn-primary">
-              {editing ? "Update Vehicle" : "Add Vehicle"}
-            </button>
-          </div>
-        </form>
+        <SmartForm
+          sections={sections}
+          formData={formData}
+          onFieldChange={onFieldChange}
+          onSubmit={handleSubmit}
+          submitting={submitting}
+          submitLabel={editing ? "Update Vehicle" : "Add Vehicle"}
+          cancelLabel="Cancel"
+          onCancel={onClose}
+        />
       </div>
     </div>
-    );
+  );
 };
 
 export default VehicleModal;

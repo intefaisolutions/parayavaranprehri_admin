@@ -1,130 +1,112 @@
 import React from "react";
-import { X } from "lucide-react";
+import { X, Newspaper, Tag, Image as ImageIcon, User, CalendarDays, ShieldCheck, Hash } from "lucide-react";
+import { SmartForm } from "../../components/form/SmartForm";
+import type { FormSectionConfig } from "../../components/form/SmartForm";
 
-interface Props {
+export interface NewsFormData {
+  _id?: string;
+  title: string;
+  content: string;
+  category: string;
+  image?: string;
+  author: string;
+  publishedDate?: string;
+  views?: string | number;
+  tags?: string[];
+  status: string;
+}
+
+interface NewsModalProps {
   isOpen: boolean;
   onClose: () => void;
   editing: boolean;
-  formData: any;
-  handleChange: (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => void;
-  handleSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
+  formData: NewsFormData;
+  submitting?: boolean;
+  error?: string;
+  onFieldChange: (name: string, value: any) => void;
+  handleSubmit: (e: React.FormEvent) => void;
 }
 
-const NewsModal: React.FC<Props> = ({
+const NewsModal: React.FC<NewsModalProps> = ({
   isOpen,
   onClose,
   editing,
   formData,
-  handleChange,
+  submitting,
+  error,
+  onFieldChange,
   handleSubmit,
 }) => {
   if (!isOpen) return null;
 
+  const sections: FormSectionConfig[] = [
+    {
+      title: "Article Details",
+      description: "Core content of this news article.",
+      icon: Newspaper,
+      fields: [
+        { name: "title", label: "News Title", type: "text", icon: Newspaper, required: true, span: 2 },
+        { name: "content", label: "Content", type: "textarea", icon: Newspaper, required: true, span: 2, rows: 6 },
+        {
+          name: "category",
+          label: "Category",
+          type: "select",
+          icon: Tag,
+          required: true,
+          options: [
+            { label: "Environment", value: "Environment" },
+            { label: "Events", value: "Events" },
+            { label: "Government", value: "Government" },
+            { label: "Awareness", value: "Awareness" },
+          ],
+        },
+        { name: "tags", label: "Tags", type: "tags", icon: Hash, placeholder: "Type and press Enter..." },
+        { name: "image", label: "Cover Image", type: "image", icon: ImageIcon, uploadCategory: "general", span: 2 },
+      ],
+    },
+    {
+      title: "Publication",
+      icon: CalendarDays,
+      fields: [
+        { name: "author", label: "Author", type: "text", icon: User, required: true },
+        { name: "publishedDate", label: "Published Date", type: "date", icon: CalendarDays },
+        {
+          name: "status",
+          label: "Publish Status",
+          type: "select",
+          icon: ShieldCheck,
+          required: true,
+          options: [
+            { label: "Draft", value: "Draft" },
+            { label: "Published", value: "Published" },
+            { label: "Archived", value: "Archived" },
+          ],
+        },
+      ],
+    },
+  ];
+
   return (
     <div className="modal-overlay">
-      <div className="modal">
+      <div className="modal" style={{ width: 680 }}>
         <div className="modal-header">
           <h2>{editing ? "Edit News" : "Add News"}</h2>
-
           <button className="icon-btn" onClick={onClose}>
             <X size={18} />
           </button>
         </div>
 
-        <form className="modal-form" onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label>News Title</label>
-            <input
-              name="newsTitle"
-              value={formData.newsTitle}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Category</label>
-
-            <select
-              name="category"
-              value={formData.category}
-              onChange={handleChange}
-            >
-              <option>Environment</option>
-              <option>Events</option>
-              <option>Government</option>
-              <option>Awareness</option>
-            </select>
-          </div>
-
-          <div className="form-group">
-            <label>Image</label>
-            <input
-              name="image"
-              value={formData.image}
-              onChange={handleChange}
-              placeholder="Image URL"
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Published Date</label>
-            <input
-              type="date"
-              name="publishedDate"
-              value={formData.publishedDate}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Created By</label>
-            <input
-              name="createdBy"
-              value={formData.createdBy}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Views</label>
-            <input
-              type="number"
-              name="views"
-              value={formData.views}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Publish Status</label>
-
-            <select
-              name="publishStatus"
-              value={formData.publishStatus}
-              onChange={handleChange}
-            >
-              <option>Published</option>
-              <option>Draft</option>
-              <option>Archived</option>
-            </select>
-          </div>
-
-          <div className="modal-actions">
-            <button
-              type="button"
-              className="btn-danger"
-              onClick={onClose}
-            >
-              Cancel
-            </button>
-
-            <button type="submit" className="btn-primary">
-              {editing ? "Update News" : "Add News"}
-            </button>
-          </div>
-        </form>
+        <SmartForm
+          sections={sections}
+          formData={formData}
+          onFieldChange={onFieldChange}
+          onSubmit={handleSubmit}
+          submitting={submitting}
+          error={error}
+          submitLabel={editing ? "Update News" : "Add News"}
+          cancelLabel="Cancel"
+          onCancel={onClose}
+        />
       </div>
     </div>
   );

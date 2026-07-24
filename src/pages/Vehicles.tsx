@@ -1,107 +1,92 @@
-import React, { useState } from "react";
-import { Plus, Filter, Edit, Trash2, Eye } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { Plus, Filter, Edit, Trash2, Loader2 } from "lucide-react";
+import type { ColumnDef } from "@tanstack/react-table";
 import DataTable from "../components/DataTable";
 import VehicleModal from "./modals/VehicleModal";
+import type { VehicleFormData } from "./modals/VehicleModal";
 import DeleteConfirmModal from "./modals/DeleteConfirmModal";
+import { apiFetch } from "../utils/apiConfig";
 
 interface Vehicle {
-  id: string;
-  vehicleNumber: string;
-  vehicleType: string;
-  ownerName: string;
-  ownerPhone: string;
-  treesAssigned: number;
-  approvalStatus: string;
-  registrationDate: string;
+  _id: string;
+  plate: string;
+  name: string;
+  vhId: string;
+  fuel: string;
+  insuranceId?: string;
+  userId?: string;
+  createdAt?: string;
 }
 
+const initialForm: VehicleFormData = {
+  plate: "",
+  name: "",
+  vhId: "",
+  fuel: "",
+  insuranceId: "",
+};
+
 export const VehiclesView = () => {
-
-  const initialForm = {
-    id: "",
-    vehicleNumber: "",
-    vehicleType: "",
-    ownerName: "",
-    ownerPhone: "",
-    treesAssigned: "",
-    approvalStatus: "Pending",
-    registrationDate: "",
-  };
-
-
-  const [vehicles, setVehicles] = useState<Vehicle[]>(
-    Array.from({ length: 100 }, (_, i) => ({
-      id: `VH-${String(i + 1).padStart(3, "0")}`,
-      vehicleNumber: `MP09AB${1000 + i}`,
-      vehicleType: i % 2 === 0 ? "Car" : "Bike",
-      ownerName: `Citizen ${i + 1}`,
-      ownerPhone: `+91-98765000${i}`,
-      treesAssigned: (i + 1) * 3,
-      approvalStatus: i % 2 === 0 ? "Approved" : "Pending",
-      registrationDate: "2026-01-15",
-    }))
-  );
-
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [formData, setFormData] = useState(initialForm);
+  const [formData, setFormData] = useState<VehicleFormData>(initialForm);
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [vehicleToDelete, setVehicleToDelete] = useState<Vehicle | null>(null);
 
-
-
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
-  };
-
-
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-
-    if(editing){
-
-      setVehicles(prev =>
-        prev.map(vehicle =>
-          vehicle.id === formData.id
-          ? {
-              ...vehicle,
-              ...formData,
-              treesAssigned:Number(formData.treesAssigned)
-            }
-          : vehicle
-        )
-      );
-
-    }else{
-
-      setVehicles(prev => [
-        {
-          id:formData.id,
-          vehicleNumber:formData.vehicleNumber,
-          vehicleType:formData.vehicleType,
-          ownerName:formData.ownerName,
-          ownerPhone:formData.ownerPhone,
-          treesAssigned:Number(formData.treesAssigned),
-          approvalStatus:formData.approvalStatus,
-          registrationDate:formData.registrationDate
-        },
-        ...prev
-      ]);
-
+  const loadVehicles = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await apiFetch<Vehicle[]>("/api/v1/vehicles");
+      setVehicles(data || []);
+    } catch (err: any) {
+      setError(err.message || "Failed to load vehicles");
+    } finally {
+      setLoading(false);
     }
-
-
-    setShowModal(false);
   };
 
+  useEffect(() => {
+    loadVehicles();
+  }, []);
 
+  const handleFieldChange = (name: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setError("");
+
+    const { _id, ...payload } = formData;
+
+    try {
+      if (editing && _id) {
+        await apiFetch(`/api/v1/vehicles/${_id}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await apiFetch("/api/v1/vehicles", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+      }
+      setShowModal(false);
+      await loadVehicles();
+    } catch (err: any) {
+      setError(err.message || "Failed to save vehicle");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const openAddModal = () => {
     setEditing(false);
@@ -109,180 +94,139 @@ export const VehiclesView = () => {
     setShowModal(true);
   };
 
-
   const openEditModal = (vehicle: Vehicle) => {
     setEditing(true);
     setFormData({
-      ...vehicle,
-      treesAssigned:String(vehicle.treesAssigned)
+      _id: vehicle._id,
+      plate: vehicle.plate,
+      name: vehicle.name,
+      vhId: vehicle.vhId,
+      fuel: vehicle.fuel,
+      insuranceId: vehicle.insuranceId || "",
     });
     setShowModal(true);
   };
 
-
-  const openDeleteModal = (vehicle:Vehicle)=>{
+  const openDeleteModal = (vehicle: Vehicle) => {
     setVehicleToDelete(vehicle);
     setShowDeleteModal(true);
   };
 
-
-  const handleDelete = ()=>{
-
-    if(!vehicleToDelete) return;
-
-    setVehicles(prev =>
-      prev.filter(
-        vehicle => vehicle.id !== vehicleToDelete.id
-      )
-    );
-
-    setShowDeleteModal(false);
-    setVehicleToDelete(null);
+  const handleDelete = async () => {
+    if (!vehicleToDelete) return;
+    try {
+      await apiFetch(`/api/v1/vehicles/${vehicleToDelete._id}`, { method: "DELETE" });
+      await loadVehicles();
+    } catch (err: any) {
+      setError(err.message || "Failed to delete vehicle");
+    } finally {
+      setVehicleToDelete(null);
+      setShowDeleteModal(false);
+    }
   };
 
-
-
-
-  const columns:ColumnDef<Vehicle>[]=[
-
+  const columns: ColumnDef<Vehicle>[] = [
+    { accessorKey: "plate", header: "Plate Number", enableSorting: true },
+    { accessorKey: "name", header: "Vehicle Name", enableSorting: true },
+    { accessorKey: "vhId", header: "Vehicle ID", enableSorting: true },
     {
-      accessorKey:"vehicleNumber",
-      header:"Vehicle Number",
-      enableSorting:true
+      accessorKey: "fuel",
+      header: "Fuel Type",
+      cell: ({ row }) => <span className="status-badge status-active">{row.original.fuel}</span>,
+      enableSorting: true,
     },
-
     {
-      accessorKey:"vehicleType",
-      header:"Vehicle Type",
-      enableSorting:true
+      accessorKey: "insuranceId",
+      header: "Insurance ID",
+      cell: ({ row }) => <span>{row.original.insuranceId || "-"}</span>,
+      enableSorting: false,
     },
-
     {
-      accessorKey:"ownerName",
-      header:"Owner Name",
-      enableSorting:true
+      header: "Actions",
+      cell: ({ row }) => (
+        <div style={{ display: "flex", gap: "8px" }}>
+          <button
+            className="icon-btn"
+            style={{ width: 28, height: 28 }}
+            onClick={() => openEditModal(row.original)}
+          >
+            <Edit size={14} />
+          </button>
+          <button
+            className="icon-btn"
+            style={{ width: 28, height: 28 }}
+            onClick={() => openDeleteModal(row.original)}
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
+      ),
+      enableSorting: false,
     },
-
-
-    {
-      accessorKey:"ownerPhone",
-      header:"Owner Phone",
-      enableSorting:true
-    },
-
-
-    {
-      accessorKey:"treesAssigned",
-      header:"Trees Assigned",
-      enableSorting:true
-    },
-
-
-    {
-      accessorKey:"approvalStatus",
-      header:"Approval Status",
-      cell:({row})=>(
-        <span
-        className={`status-badge ${
-          row.original.approvalStatus==="Approved"
-          ?"status-active"
-          :"status-inactive"
-        }`}
-        >
-          {row.original.approvalStatus}
-        </span>
-      )
-    },
-
-
-    {
-      accessorKey:"registrationDate",
-      header:"Registration Date",
-      enableSorting:true
-    },
-
-
-    {
-      header:"Actions",
-
-      cell:({row})=>(
-<div style={{ display: "flex", gap: "8px" }}>
-  <button className="icon-btn" style={{ width: 28, height: 28 }}>
-    <Eye size={14} />
-  </button>
-
-  <button
-    className="icon-btn"
-    style={{ width: 28, height: 28 }}
-    onClick={() => openEditModal(row.original)}
-  >
-    <Edit size={14} />
-  </button>
-
-  <button
-    className="icon-btn"
-    style={{ width: 28, height: 28 }}
-    onClick={() => openDeleteModal(row.original)}
-  >
-    <Trash2 size={14} />
-  </button>
-</div>
-      )
-    }
-
   ];
 
+  return (
+    <>
+      <div className="dashboard-area">
+        <div className="page-header">
+          <div className="page-title">
+            <h1>Vehicle Management</h1>
+            <p>Manage registered vehicles and their fuel & insurance details.</p>
+          </div>
 
+          <div style={{ display: "flex", gap: "12px" }}>
+            <button className="icon-btn">
+              <Filter size={18} />
+            </button>
 
-return (
-<>
-  <div className="dashboard-area">
-    <div className="page-header">
-      <div className="page-title">
-        <h1>Vehicle Management</h1>
-        <p>Manage registered vehicles and assigned plantation records.</p>
+            <button className="btn-primary" onClick={openAddModal}>
+              <Plus size={18} />
+              Add Vehicle
+            </button>
+          </div>
+        </div>
+
+        {error && (
+          <div style={{ background: "rgba(255, 61, 0, 0.1)", color: "#ff3d00", padding: "12px", borderRadius: "8px", marginBottom: "16px" }}>
+            {error}
+          </div>
+        )}
+
+        <div className="card">
+          {loading ? (
+            <div style={{ display: "flex", justifyContent: "center", padding: "40px" }}>
+              <Loader2 size={24} className="spin" />
+            </div>
+          ) : (
+            <DataTable
+              data={vehicles}
+              columns={columns}
+              searchPlaceholder="Search plate number, vehicle name, ID..."
+            />
+          )}
+        </div>
       </div>
 
-      <div style={{ display: "flex", gap: "12px" }}>
-        <button className="icon-btn">
-          <Filter size={18} />
-        </button>
-
-        <button className="btn-primary" onClick={openAddModal}>
-          <Plus size={18} />
-          Add Vehicle
-        </button>
-      </div>
-    </div>
-
-    <div className="card">
-      <DataTable
-        data={vehicles}
-        columns={columns}
-        searchPlaceholder="Search vehicle number, owner name, phone..."
+      <VehicleModal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        editing={editing}
+        formData={formData}
+        submitting={submitting}
+        onFieldChange={handleFieldChange}
+        handleSubmit={handleSubmit}
       />
-    </div>
-  </div>
 
-  <VehicleModal
-    isOpen={showModal}
-    onClose={() => setShowModal(false)}
-    editing={editing}
-    formData={formData}
-    handleChange={handleChange}
-    handleSubmit={handleSubmit}
-  />
-
-  <DeleteConfirmModal
-    isOpen={showDeleteModal}
-    onClose={() => {
-      setShowDeleteModal(false);
-      setVehicleToDelete(null);
-    }}
-    onConfirm={handleDelete}
-    personName={vehicleToDelete?.vehicleNumber}
-  />
-</>
-);
-
+      <DeleteConfirmModal
+        isOpen={showDeleteModal}
+        onClose={() => {
+          setShowDeleteModal(false);
+          setVehicleToDelete(null);
+        }}
+        onConfirm={handleDelete}
+        personName={vehicleToDelete?.plate}
+        title="Delete Vehicle"
+      />
+    </>
+  );
 };

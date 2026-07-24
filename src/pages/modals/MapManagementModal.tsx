@@ -1,130 +1,102 @@
 import React from "react";
-import { X } from "lucide-react";
+import { X, MapPin, TreePine, User, ShieldCheck } from "lucide-react";
+import { SmartForm } from "../../components/form/SmartForm";
+import type { FormSectionConfig } from "../../components/form/SmartForm";
 
-interface Props {
+export interface MapFormData {
+  _id?: string;
+  locationName: string;
+  treeCount?: string;
+  latitude?: string;
+  longitude?: string;
+  plantationArea?: string;
+  addedBy?: string;
+  status: string;
+}
+
+interface MapManagementModalProps {
   isOpen: boolean;
   onClose: () => void;
   editing: boolean;
-  formData: any;
-  handleChange: (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => void;
-  handleSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
+  formData: MapFormData;
+  submitting?: boolean;
+  error?: string;
+  onFieldChange: (name: string, value: string) => void;
+  handleSubmit: (e: React.FormEvent) => void;
 }
 
-const MapManagementModal: React.FC<Props> = ({
+const MapManagementModal: React.FC<MapManagementModalProps> = ({
   isOpen,
   onClose,
   editing,
   formData,
-  handleChange,
+  submitting,
+  error,
+  onFieldChange,
   handleSubmit,
 }) => {
   if (!isOpen) return null;
 
+  const sections: FormSectionConfig[] = [
+    {
+      title: "Plantation Location",
+      description: "Where this plantation record is mapped.",
+      icon: MapPin,
+      fields: [
+        { name: "locationName", label: "Location Name", type: "text", icon: MapPin, required: true, span: 2 },
+        { name: "treeCount", label: "Tree Count", type: "number", icon: TreePine },
+        { name: "plantationArea", label: "Plantation Area", type: "text", icon: TreePine },
+      ],
+    },
+    {
+      title: "Geo Coordinates",
+      icon: MapPin,
+      fields: [
+        { name: "latitude", label: "Latitude", type: "text", icon: MapPin },
+        { name: "longitude", label: "Longitude", type: "text", icon: MapPin },
+      ],
+    },
+    {
+      title: "Ownership & Status",
+      icon: ShieldCheck,
+      fields: [
+        { name: "addedBy", label: "Added By", type: "text", icon: User },
+        {
+          name: "status",
+          label: "Status",
+          type: "select",
+          icon: ShieldCheck,
+          required: true,
+          options: [
+            { label: "Active", value: "Active" },
+            { label: "Inactive", value: "Inactive" },
+          ],
+        },
+      ],
+    },
+  ];
+
   return (
     <div className="modal-overlay">
-      <div className="modal">
+      <div className="modal" style={{ width: 640 }}>
         <div className="modal-header">
           <h2>{editing ? "Edit Map Record" : "Add Map Record"}</h2>
-
           <button className="icon-btn" onClick={onClose}>
             <X size={18} />
           </button>
         </div>
 
-        <form className="modal-form" onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label>Location Name</label>
-            <input
-              name="locationName"
-              value={formData.locationName}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Tree Count</label>
-            <input
-              type="number"
-              name="treeCount"
-              value={formData.treeCount}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Latitude</label>
-            <input
-              name="latitude"
-              value={formData.latitude}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Longitude</label>
-            <input
-              name="longitude"
-              value={formData.longitude}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Plantation Area</label>
-            <input
-              name="plantationArea"
-              value={formData.plantationArea}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Added By</label>
-            <input
-              name="addedBy"
-              value={formData.addedBy}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Last Updated</label>
-            <input
-              type="date"
-              name="lastUpdated"
-              value={formData.lastUpdated}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Status</label>
-            <select
-              name="status"
-              value={formData.status}
-              onChange={handleChange}
-            >
-              <option>Active</option>
-              <option>Inactive</option>
-            </select>
-          </div>
-
-          <div className="modal-actions">
-            <button
-              type="button"
-              className="btn-danger"
-              onClick={onClose}
-            >
-              Cancel
-            </button>
-
-            <button type="submit" className="btn-primary">
-              {editing ? "Update Map" : "Add Map"}
-            </button>
-          </div>
-        </form>
+        <SmartForm
+          sections={sections}
+          formData={formData}
+          onFieldChange={onFieldChange}
+          onSubmit={handleSubmit}
+          submitting={submitting}
+          error={error}
+          submitLabel={editing ? "Update Map" : "Add Map"}
+          cancelLabel="Cancel"
+          onCancel={onClose}
+        />
       </div>
     </div>
   );

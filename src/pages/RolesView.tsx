@@ -1,105 +1,91 @@
-import React, { useState } from "react";
-import { Plus, Filter, Edit, Trash2, Eye } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { Plus, Filter, Edit, Trash2, Loader2 } from "lucide-react";
+import type { ColumnDef } from "@tanstack/react-table";
 import DataTable from "../components/DataTable";
 import RolesModal from "./modals/RolesModal";
+import type { RoleFormData } from "./modals/RolesModal";
 import DeleteConfirmModal from "./modals/DeleteConfirmModal";
+import { apiFetch } from "../utils/apiConfig";
 
-interface RolePermission {
-  id: string;
-  roleName: string;
-  accessLevel: string;
-  assignedLocation: string;
-  modulesAccess: string;
-  usersCount: number;
-  createdDate: string;
-  status: string;
+interface Role {
+  _id: string;
+  name: string;
+  displayName: string;
+  description?: string;
+  permissionKeys: string[];
+  isActive: boolean;
+  isSystem: boolean;
+  createdAt?: string;
 }
 
-export const RolesView = () => {
-  const initialForm = {
-    id: "",
-    roleName: "",
-    accessLevel: "Full Access",
-    assignedLocation: "",
-    modulesAccess: "",
-    usersCount: 0,
-    createdDate: "",
-    status: "Active",
-  };
+const initialForm: RoleFormData = {
+  name: "",
+  displayName: "",
+  description: "",
+  permissionKeys: [],
+  isActive: true,
+};
 
-  const [roleList, setRoleList] = useState<RolePermission[]>(
-    Array.from({ length: 100 }, (_, i) => ({
-      id: `ROLE-${String(i + 1).padStart(3, "0")}`,
-      roleName:
-        i % 3 === 0
-          ? "Administrator"
-          : i % 3 === 1
-          ? "Manager"
-          : "Operator",
-      accessLevel:
-        i % 2 === 0
-          ? "Full Access"
-          : "Limited Access",
-      assignedLocation:
-        i % 2 === 0
-          ? "All Locations"
-          : "Delhi",
-      modulesAccess:
-        i % 2 === 0
-          ? "All Modules"
-          : "Users, Reports",
-      usersCount:
-        (i + 1) * 5,
-      createdDate:
-        "2026-01-10",
-      status:
-        i % 2 === 0
-          ? "Active"
-          : "Inactive",
-    }))
-  );
+export const RolesView = () => {
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [formData, setFormData] = useState(initialForm);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [roleToDelete, setRoleToDelete] =
-    useState<RolePermission | null>(null);
+  const [formData, setFormData] = useState<RoleFormData>(initialForm);
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [roleToDelete, setRoleToDelete] = useState<Role | null>(null);
+
+  const loadRoles = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await apiFetch<{ items: Role[] }>("/api/v1/roles?limit=100");
+      setRoles(data?.items || []);
+    } catch (err: any) {
+      setError(err.message || "Failed to load roles");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSubmit = (
-    e: React.FormEvent<HTMLFormElement>
-  ) => {
+  useEffect(() => {
+    loadRoles();
+  }, []);
+
+  const handleFieldChange = (name: string, value: any) => {
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitting(true);
+    setError("");
 
-    if (editing) {
-      setRoleList((prev) =>
-        prev.map((item) =>
-          item.id === formData.id
-            ? { ...item, ...formData }
-            : item
-        )
-      );
-    } else {
-      setRoleList((prev) => [
-        {
-          ...formData,
-          id: `ROLE-${Date.now()}`,
-          usersCount: Number(formData.usersCount),
-        },
-        ...prev,
-      ]);
+    const { _id, ...payload } = formData;
+
+    try {
+      if (editing && _id) {
+        await apiFetch(`/api/v1/roles/${_id}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await apiFetch("/api/v1/roles", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+      }
+      setShowModal(false);
+      await loadRoles();
+    } catch (err: any) {
+      setError(err.message || "Failed to save role");
+    } finally {
+      setSubmitting(false);
     }
-
-    setShowModal(false);
   };
 
   const openAddModal = () => {
@@ -108,108 +94,89 @@ export const RolesView = () => {
     setShowModal(true);
   };
 
-  const openEditModal = (
-    role: RolePermission
-  ) => {
+  const openEditModal = (role: Role) => {
     setEditing(true);
-    setFormData(role);
+    setFormData({
+      _id: role._id,
+      name: role.name,
+      displayName: role.displayName,
+      description: role.description || "",
+      permissionKeys: role.permissionKeys || [],
+      isActive: role.isActive,
+    });
     setShowModal(true);
   };
 
-  const openDeleteModal = (
-    role: RolePermission
-  ) => {
+  const openDeleteModal = (role: Role) => {
     setRoleToDelete(role);
     setShowDeleteModal(true);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!roleToDelete) return;
-
-    setRoleList((prev) =>
-      prev.filter(
-        (item) =>
-          item.id !== roleToDelete.id
-      )
-    );
-
-    setShowDeleteModal(false);
-    setRoleToDelete(null);
+    try {
+      await apiFetch(`/api/v1/roles/${roleToDelete._id}`, { method: "DELETE" });
+      await loadRoles();
+    } catch (err: any) {
+      setError(err.message || "Failed to delete role");
+    } finally {
+      setRoleToDelete(null);
+      setShowDeleteModal(false);
+    }
   };
 
-  const columns: ColumnDef<RolePermission>[] = [
+  const columns: ColumnDef<Role>[] = [
+    { accessorKey: "displayName", header: "Role Name", enableSorting: true },
+    { accessorKey: "name", header: "Role Key", enableSorting: true },
     {
-      accessorKey: "roleName",
-      header: "Role Name",
-      enableSorting: true,
+      accessorKey: "permissionKeys",
+      header: "Permissions",
+      cell: ({ row }) => <span>{row.original.permissionKeys?.length || 0} assigned</span>,
+      enableSorting: false,
     },
     {
-      accessorKey: "accessLevel",
-      header: "Access Level",
-      enableSorting: true,
-    },
-    {
-      accessorKey: "assignedLocation",
-      header: "Assigned Location",
-      enableSorting: true,
-    },
-    {
-      accessorKey: "modulesAccess",
-      header: "Modules Access",
-      enableSorting: true,
-    },
-    {
-      accessorKey: "usersCount",
-      header: "Users Count",
-      enableSorting: true,
-    },
-    {
-      accessorKey: "createdDate",
-      header: "Created Date",
-      enableSorting: true,
-    },
-    {
-      accessorKey: "status",
-      header: "Status",
+      accessorKey: "isSystem",
+      header: "Type",
       cell: ({ row }) => (
-        <span
-          className={`status-badge ${
-            row.original.status === "Active"
-              ? "status-active"
-              : "status-inactive"
-          }`}
-        >
-          {row.original.status}
+        <span className={`status-badge ${row.original.isSystem ? "status-warning" : "status-active"}`}>
+          {row.original.isSystem ? "System" : "Custom"}
         </span>
       ),
+      enableSorting: false,
+    },
+    {
+      accessorKey: "isActive",
+      header: "Status",
+      cell: ({ row }) => (
+        <span className={`status-badge ${row.original.isActive ? "status-active" : "status-inactive"}`}>
+          {row.original.isActive ? "Active" : "Inactive"}
+        </span>
+      ),
+      enableSorting: false,
     },
     {
       header: "Actions",
       cell: ({ row }) => (
         <div style={{ display: "flex", gap: "8px" }}>
-          <button className="icon-btn">
-            <Eye size={14} />
-          </button>
-
           <button
             className="icon-btn"
-            onClick={() =>
-              openEditModal(row.original)
-            }
+            style={{ width: 28, height: 28 }}
+            onClick={() => openEditModal(row.original)}
           >
             <Edit size={14} />
           </button>
-
           <button
             className="icon-btn"
-            onClick={() =>
-              openDeleteModal(row.original)
-            }
+            style={{ width: 28, height: 28 }}
+            onClick={() => openDeleteModal(row.original)}
+            disabled={row.original.isSystem}
+            title={row.original.isSystem ? "System roles cannot be deleted" : "Delete"}
           >
             <Trash2 size={14} />
           </button>
         </div>
       ),
+      enableSorting: false,
     },
   ];
 
@@ -219,9 +186,7 @@ export const RolesView = () => {
         <div className="page-header">
           <div className="page-title">
             <h1>Role & Permissions</h1>
-            <p>
-              Manage user roles and module permissions.
-            </p>
+            <p>Manage user roles and module permissions.</p>
           </div>
 
           <div style={{ display: "flex", gap: "12px" }}>
@@ -229,22 +194,31 @@ export const RolesView = () => {
               <Filter size={18} />
             </button>
 
-            <button
-              className="btn-primary"
-              onClick={openAddModal}
-            >
+            <button className="btn-primary" onClick={openAddModal}>
               <Plus size={18} />
               Add Role
             </button>
           </div>
         </div>
 
+        {error && (
+          <div style={{ background: "rgba(255, 61, 0, 0.1)", color: "#ff3d00", padding: "12px", borderRadius: "8px", marginBottom: "16px" }}>
+            {error}
+          </div>
+        )}
+
         <div className="card">
-          <DataTable
-            data={roleList}
-            columns={columns}
-            searchPlaceholder="Search role name, access..."
-          />
+          {loading ? (
+            <div style={{ display: "flex", justifyContent: "center", padding: "40px" }}>
+              <Loader2 size={24} className="spin" />
+            </div>
+          ) : (
+            <DataTable
+              data={roles}
+              columns={columns}
+              searchPlaceholder="Search role name, key..."
+            />
+          )}
         </div>
       </div>
 
@@ -253,7 +227,8 @@ export const RolesView = () => {
         onClose={() => setShowModal(false)}
         editing={editing}
         formData={formData}
-        handleChange={handleChange}
+        submitting={submitting}
+        onFieldChange={handleFieldChange}
         handleSubmit={handleSubmit}
       />
 
@@ -264,7 +239,8 @@ export const RolesView = () => {
           setRoleToDelete(null);
         }}
         onConfirm={handleDelete}
-        personName={roleToDelete?.roleName}
+        personName={roleToDelete?.displayName}
+        title="Delete Role"
       />
     </>
   );

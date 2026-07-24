@@ -1,136 +1,115 @@
 import React from "react";
-import { X } from "lucide-react";
+import { X, MapPin, Building2, Landmark, Hash, ShieldCheck } from "lucide-react";
+import { SmartForm } from "../../components/form/SmartForm";
+import type { FormSectionConfig } from "../../components/form/SmartForm";
 
-interface Props {
+export interface LocationFormData {
+  _id?: string;
+  locationName: string;
+  locationType: string;
+  parentLocation?: string;
+  latitude?: string;
+  longitude?: string;
+  totalLinkedRecords?: string;
+  status: string;
+}
+
+interface LocationMasterModalProps {
   isOpen: boolean;
   onClose: () => void;
   editing: boolean;
-  formData: any;
-  handleChange: (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => void;
-  handleSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
+  formData: LocationFormData;
+  submitting?: boolean;
+  error?: string;
+  onFieldChange: (name: string, value: string) => void;
+  handleSubmit: (e: React.FormEvent) => void;
 }
 
-const LocationMasterModal: React.FC<Props> = ({
+const LocationMasterModal: React.FC<LocationMasterModalProps> = ({
   isOpen,
   onClose,
   editing,
   formData,
-  handleChange,
+  submitting,
+  error,
+  onFieldChange,
   handleSubmit,
 }) => {
   if (!isOpen) return null;
 
+  const sections: FormSectionConfig[] = [
+    {
+      title: "Location Details",
+      description: "Core identity of this location within the hierarchy.",
+      icon: MapPin,
+      fields: [
+        { name: "locationName", label: "Location Name", type: "text", icon: MapPin, required: true, span: 2 },
+        {
+          name: "locationType",
+          label: "Location Type",
+          type: "select",
+          icon: Landmark,
+          required: true,
+          options: [
+            { label: "State", value: "State" },
+            { label: "District", value: "District" },
+            { label: "Vidhan Sabha", value: "Vidhan Sabha" },
+            { label: "Zone", value: "Zone" },
+            { label: "Sector", value: "Sector" },
+          ],
+        },
+        { name: "parentLocation", label: "Parent Location", type: "text", icon: Building2 },
+      ],
+    },
+    {
+      title: "Geo Coordinates",
+      icon: MapPin,
+      fields: [
+        { name: "latitude", label: "Latitude", type: "text", icon: MapPin },
+        { name: "longitude", label: "Longitude", type: "text", icon: MapPin },
+      ],
+    },
+    {
+      title: "Records & Status",
+      icon: ShieldCheck,
+      fields: [
+        { name: "totalLinkedRecords", label: "Total Linked Records", type: "number", icon: Hash },
+        {
+          name: "status",
+          label: "Status",
+          type: "select",
+          icon: ShieldCheck,
+          required: true,
+          options: [
+            { label: "Active", value: "Active" },
+            { label: "Inactive", value: "Inactive" },
+          ],
+        },
+      ],
+    },
+  ];
+
   return (
     <div className="modal-overlay">
-      <div className="modal">
+      <div className="modal" style={{ width: 640 }}>
         <div className="modal-header">
           <h2>{editing ? "Edit Location" : "Add Location"}</h2>
-
           <button className="icon-btn" onClick={onClose}>
             <X size={18} />
           </button>
         </div>
 
-        <form className="modal-form" onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label>Location Name</label>
-            <input
-              name="locationName"
-              value={formData.locationName}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Location Type</label>
-            <select
-              name="locationType"
-              value={formData.locationType}
-              onChange={handleChange}
-            >
-              <option>State</option>
-              <option>District</option>
-              <option>Vidhan Sabha</option>
-              <option>Zone</option>
-              <option>Sector</option>
-            </select>
-          </div>
-
-          <div className="form-group">
-            <label>Parent Location</label>
-            <input
-              name="parentLocation"
-              value={formData.parentLocation}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Latitude</label>
-            <input
-              name="latitude"
-              value={formData.latitude}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Longitude</label>
-            <input
-              name="longitude"
-              value={formData.longitude}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Total Linked Records</label>
-            <input
-              type="number"
-              name="totalLinkedRecords"
-              value={formData.totalLinkedRecords}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Created Date</label>
-            <input
-              type="date"
-              name="createdDate"
-              value={formData.createdDate}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Status</label>
-            <select
-              name="status"
-              value={formData.status}
-              onChange={handleChange}
-            >
-              <option>Active</option>
-              <option>Inactive</option>
-            </select>
-          </div>
-
-          <div className="modal-actions">
-            <button
-              type="button"
-              className="btn-danger"
-              onClick={onClose}
-            >
-              Cancel
-            </button>
-
-            <button type="submit" className="btn-primary">
-              {editing ? "Update Location" : "Add Location"}
-            </button>
-          </div>
-        </form>
+        <SmartForm
+          sections={sections}
+          formData={formData}
+          onFieldChange={onFieldChange}
+          onSubmit={handleSubmit}
+          submitting={submitting}
+          error={error}
+          submitLabel={editing ? "Update Location" : "Add Location"}
+          cancelLabel="Cancel"
+          onCancel={onClose}
+        />
       </div>
     </div>
   );

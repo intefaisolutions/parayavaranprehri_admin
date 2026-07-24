@@ -1,112 +1,122 @@
-import React, { useState } from "react";
-import { Plus, Filter, Edit, Trash2, Eye } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { Plus, Filter, Edit, Trash2, Eye, Loader2 } from "lucide-react";
+import type { ColumnDef } from "@tanstack/react-table";
 import DataTable from "../components/DataTable";
 import LocationMasterModal from "./modals/LocationMasterModal";
+import type { LocationFormData } from "./modals/LocationMasterModal";
 import DeleteConfirmModal from "./modals/DeleteConfirmModal";
+import { apiFetch } from "../utils/apiConfig";
 
 interface Location {
-  id: string;
+  _id: string;
   locationName: string;
   locationType: string;
-  parentLocation: string;
-  latitude: string;
-  longitude: string;
+  parentLocation?: string;
+  latitude?: number;
+  longitude?: number;
   totalLinkedRecords: number;
-  createdDate: string;
   status: string;
+  createdAt?: string;
 }
 
-export const LocationView = () => {
-  const initialForm = {
-    id: "",
-    locationName: "",
-    locationType: "",
-    parentLocation: "",
-    latitude: "",
-    longitude: "",
-    totalLinkedRecords: "",
-    createdDate: "",
-    status: "Active",
-  };
+const initialForm: LocationFormData = {
+  locationName: "",
+  locationType: "State",
+  parentLocation: "",
+  latitude: "",
+  longitude: "",
+  totalLinkedRecords: "",
+  status: "Active",
+};
 
-  const [locations, setLocations] = useState<Location[]>(
-    Array.from({ length: 100 }, (_, i) => ({
-      id: `LOC-${String(i + 1).padStart(3, "0")}`,
-      locationName: `Location ${i + 1}`,
-      locationType: i % 2 === 0 ? "Zone" : "Sector",
-      parentLocation: `District ${i % 5 + 1}`,
-      latitude: "23.2599",
-      longitude: "77.4126",
-      totalLinkedRecords: (i + 1) * 50,
-      createdDate: "2026-01-10",
-      status: i % 2 === 0 ? "Active" : "Inactive",
-    }))
-  );
+export const LocationView = () => {
+  const [locations, setLocations] = useState<Location[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [formData, setFormData] = useState(initialForm);
+  const [formData, setFormData] = useState<LocationFormData>(initialForm);
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [locationToDelete, setLocationToDelete] =
-    useState<Location | null>(null);
+  const [locationToDelete, setLocationToDelete] = useState<Location | null>(null);
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+  const loadLocations = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await apiFetch<Location[]>("/api/v1/locations");
+      setLocations(data || []);
+    } catch (err: any) {
+      setError(err.message || "Failed to load locations");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  useEffect(() => {
+    loadLocations();
+  }, []);
+
+  const handleFieldChange = (name: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitting(true);
+    setError("");
 
-    if (editing) {
-      setLocations((prev) =>
-        prev.map((location) =>
-          location.id === formData.id
-            ? {
-                ...formData,
-                totalLinkedRecords: Number(
-                  formData.totalLinkedRecords
-                ),
-              }
-            : location
-        )
-      );
-    } else {
-      setLocations((prev) => [
-        {
-          id: formData.id,
-          locationName: formData.locationName,
-          locationType: formData.locationType,
-          parentLocation: formData.parentLocation,
-          latitude: formData.latitude,
-          longitude: formData.longitude,
-          totalLinkedRecords: Number(formData.totalLinkedRecords),
-          createdDate: formData.createdDate,
-          status: formData.status,
-        },
-        ...prev,
-      ]);
+    const { _id, ...rest } = formData;
+    const payload = {
+      ...rest,
+      latitude: rest.latitude === "" ? undefined : Number(rest.latitude),
+      longitude: rest.longitude === "" ? undefined : Number(rest.longitude),
+      totalLinkedRecords:
+        rest.totalLinkedRecords === "" ? undefined : Number(rest.totalLinkedRecords),
+    };
+
+    try {
+      if (editing && _id) {
+        await apiFetch(`/api/v1/locations/${_id}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await apiFetch("/api/v1/locations", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+      }
+      setShowModal(false);
+      await loadLocations();
+    } catch (err: any) {
+      setError(err.message || "Failed to save location");
+    } finally {
+      setSubmitting(false);
     }
-
-    setShowModal(false);
   };
 
   const openAddModal = () => {
     setEditing(false);
+    setError("");
     setFormData(initialForm);
     setShowModal(true);
   };
 
   const openEditModal = (location: Location) => {
     setEditing(true);
+    setError("");
     setFormData({
-      ...location,
-      totalLinkedRecords: String(location.totalLinkedRecords),
+      _id: location._id,
+      locationName: location.locationName,
+      locationType: location.locationType,
+      parentLocation: location.parentLocation || "",
+      latitude: location.latitude !== undefined ? String(location.latitude) : "",
+      longitude: location.longitude !== undefined ? String(location.longitude) : "",
+      totalLinkedRecords: String(location.totalLinkedRecords ?? 0),
+      status: location.status,
     });
     setShowModal(true);
   };
@@ -116,17 +126,17 @@ export const LocationView = () => {
     setShowDeleteModal(true);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!locationToDelete) return;
-
-    setLocations((prev) =>
-      prev.filter(
-        (location) => location.id !== locationToDelete.id
-      )
-    );
-
-    setShowDeleteModal(false);
-    setLocationToDelete(null);
+    try {
+      await apiFetch(`/api/v1/locations/${locationToDelete._id}`, { method: "DELETE" });
+      await loadLocations();
+    } catch (err: any) {
+      setError(err.message || "Failed to delete location");
+    } finally {
+      setShowDeleteModal(false);
+      setLocationToDelete(null);
+    }
   };
 
   const columns: ColumnDef<Location>[] = [
@@ -161,9 +171,11 @@ export const LocationView = () => {
       enableSorting: true,
     },
     {
-      accessorKey: "createdDate",
+      accessorKey: "createdAt",
       header: "Created Date",
       enableSorting: true,
+      cell: ({ row }) =>
+        row.original.createdAt ? new Date(row.original.createdAt).toLocaleDateString() : "-",
     },
     {
       accessorKey: "status",
@@ -171,23 +183,19 @@ export const LocationView = () => {
       cell: ({ row }) => (
         <span
           className={`status-badge ${
-            row.original.status === "Active"
-              ? "status-active"
-              : "status-inactive"
+            row.original.status === "Active" ? "status-active" : "status-inactive"
           }`}
         >
           {row.original.status}
         </span>
       ),
+      enableSorting: false,
     },
     {
       header: "Actions",
       cell: ({ row }) => (
         <div style={{ display: "flex", gap: "8px" }}>
-          <button
-            className="icon-btn"
-            style={{ width: 28, height: 28 }}
-          >
+          <button className="icon-btn" style={{ width: 28, height: 28 }}>
             <Eye size={14} />
           </button>
 
@@ -208,6 +216,7 @@ export const LocationView = () => {
           </button>
         </div>
       ),
+      enableSorting: false,
     },
   ];
 
@@ -225,22 +234,39 @@ export const LocationView = () => {
               <Filter size={18} />
             </button>
 
-            <button
-              className="btn-primary"
-              onClick={openAddModal}
-            >
+            <button className="btn-primary" onClick={openAddModal}>
               <Plus size={18} />
               Add Location
             </button>
           </div>
         </div>
 
+        {error && (
+          <div
+            style={{
+              background: "rgba(255, 61, 0, 0.1)",
+              color: "#ff3d00",
+              padding: "12px",
+              borderRadius: "8px",
+              marginBottom: "16px",
+            }}
+          >
+            {error}
+          </div>
+        )}
+
         <div className="card">
-          <DataTable
-            data={locations}
-            columns={columns}
-            searchPlaceholder="Search location name, type, parent..."
-          />
+          {loading ? (
+            <div style={{ display: "flex", justifyContent: "center", padding: "40px" }}>
+              <Loader2 size={24} className="spin" />
+            </div>
+          ) : (
+            <DataTable
+              data={locations}
+              columns={columns}
+              searchPlaceholder="Search location name, type, parent..."
+            />
+          )}
         </div>
       </div>
 
@@ -249,7 +275,9 @@ export const LocationView = () => {
         onClose={() => setShowModal(false)}
         editing={editing}
         formData={formData}
-        handleChange={handleChange}
+        submitting={submitting}
+        error={error}
+        onFieldChange={handleFieldChange}
         handleSubmit={handleSubmit}
       />
 
@@ -261,6 +289,7 @@ export const LocationView = () => {
         }}
         onConfirm={handleDelete}
         personName={locationToDelete?.locationName}
+        title="Delete Location"
       />
     </>
   );
