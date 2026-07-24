@@ -1,6 +1,10 @@
 export const API_CONFIG = {
-  // Uses environment variable for flexibility, falls back to localhost for local development
-  baseURL: 'http://localhost:3000',
+  // Points at the bare server origin (no trailing /api) since every call site
+  // already passes a full "/api/v1/..." path - baseURL used to include "/api"
+  // too, which produced broken "/api/api/v1/..." URLs.
+  baseURL: import.meta.env.DEV
+    ? 'http://localhost:3000'
+    : 'https://paryavaranprahri.com',
 
   timeout: 10000,
 };
@@ -50,4 +54,43 @@ export const apiFetch = async <T = any>(
   }
 
   return (body?.data ?? body) as T;
+};
+
+export interface UploadResult {
+  url: string;
+  key: string;
+}
+
+/**
+ * Uploads a single file (image/PDF) to the backend, which stores it in S3
+ * and returns a public URL. Reusable anywhere a file needs to be uploaded.
+ *
+ * @param file - The File object (e.g. from an <input type="file"> change event)
+ * @param category - S3 folder category: 'users' | 'certificates' | 'trees' | 'documents' | 'general'
+ */
+export const apiUpload = async (
+  file: File,
+  category: 'users' | 'certificates' | 'trees' | 'documents' | 'general' = 'general'
+): Promise<UploadResult> => {
+  const token = localStorage.getItem('accessToken');
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const res = await fetch(getApiUrl(`/api/v1/uploads?category=${category}`), {
+    method: 'POST',
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: formData,
+  });
+
+  const isJson = res.headers.get('content-type')?.includes('application/json');
+  const body = isJson ? await res.json().catch(() => null) : null;
+
+  if (!res.ok) {
+    const message = body?.message || body?.error || `Upload failed (${res.status})`;
+    throw new Error(Array.isArray(message) ? message.join(', ') : message);
+  }
+
+  return (body?.data ?? body) as UploadResult;
 };

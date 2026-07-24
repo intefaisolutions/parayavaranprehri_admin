@@ -23,7 +23,8 @@ import {
   Settings,
   ShieldCheck,
   History,
-  Leaf
+  Leaf,
+  Sparkles
 } from "lucide-react";
 
 const Sidebar = () => {
@@ -45,6 +46,7 @@ const Sidebar = () => {
     { id: "leaders", icon: <Users2 size={20} />, label: "Initiative Leaders" },
     { id: "certificates", icon: <Award size={20} />, label: "Certificates" },
     { id: "certificates/issued", icon: <FileBadge size={20} />, label: "Issued Certificates" },
+    { id: "rashi-trees", icon: <Sparkles size={20} />, label: "Rashi Tree Recommendations" },
     { id: "partners", icon: <Handshake size={20} />, label: "Channel Partners" },
     { id: "notifications", icon: <Bell size={20} />, label: "Notifications" },
     { id: "callcenter", icon: <PhoneCall size={20} />, label: "Call Center" },

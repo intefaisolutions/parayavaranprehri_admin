@@ -28,6 +28,9 @@ import { CertificatesView } from "./pages/Certificates";
 import { CertificateForm } from "./pages/forms/CertificateForm";
 import { IssuedCertificatesView } from "./pages/IssuedCertificates";
 
+import { RashiTreesView } from "./pages/RashiTrees";
+import { RashiTreeForm } from "./pages/forms/RashiTreeForm";
+
 import { PartnersView } from "./pages/ChannelPartners";
 import { PartnerForm } from "./pages/forms/PartnerForm";
 
@@ -98,6 +101,10 @@ function App() {
           <Route path="/certificates/add" element={<CertificateForm />} />
           <Route path="/certificates/edit" element={<CertificateForm />} />
           <Route path="/certificates/issued" element={<IssuedCertificatesView />} />
+
+          <Route path="/rashi-trees" element={<RashiTreesView />} />
+          <Route path="/rashi-trees/add" element={<RashiTreeForm />} />
+          <Route path="/rashi-trees/edit" element={<RashiTreeForm />} />
 
           <Route path="/partners" element={<PartnersView />} />
           <Route path="/partners/add" element={<PartnerForm />} />
