@@ -1,92 +1,90 @@
-import React, { useState } from "react";
-import { Plus, Filter, Edit, Trash2, Eye } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { Plus, Filter, Edit, Trash2, Loader2, Phone } from "lucide-react";
+import type { ColumnDef } from "@tanstack/react-table";
 import DataTable from "../components/DataTable";
 import CallCenterModal from "./modals/CallCenterModal";
+import type { CallCenterFormData } from "./modals/CallCenterModal";
 import DeleteConfirmModal from "./modals/DeleteConfirmModal";
+import { apiFetch } from "../utils/apiConfig";
 
-interface CallCenter {
-  id: string;
+interface CallCenterContact {
+  _id: string;
   contactType: string;
   contactValue: string;
-  availableHours: string;
-  assignedPerson: string;
-  lastUpdated: string;
+  availableHours?: string;
+  assignedPerson?: string;
+  lastUpdated?: string;
   status: string;
 }
 
-export const CallCenterView = () => {
-  const initialForm = {
-    id: "",
-    contactType: "Phone",
-    contactValue: "",
-    availableHours: "",
-    assignedPerson: "",
-    lastUpdated: "",
-    status: "Active",
-  };
+const initialForm: CallCenterFormData = {
+  contactType: "Phone",
+  contactValue: "",
+  availableHours: "",
+  assignedPerson: "",
+  status: "Active",
+};
 
-  const [callCenterList, setCallCenterList] = useState<CallCenter[]>(
-    Array.from({ length: 100 }, (_, i) => ({
-      id: `CALL-${String(i + 1).padStart(3, "0")}`,
-      contactType: i % 2 === 0 ? "Phone" : "Email",
-      contactValue:
-        i % 2 === 0
-          ? `+91 987654${String(i).padStart(4, "0")}`
-          : `support${i + 1}@company.com`,
-      availableHours:
-        i % 2 === 0
-          ? "09:00 AM - 06:00 PM"
-          : "24x7",
-      assignedPerson:
-        `Agent ${i % 5 + 1}`,
-      lastUpdated:
-        "2026-02-20",
-      status:
-        i % 2 === 0
-          ? "Active"
-          : "Inactive",
-    }))
-  );
+export const CallCenterView = () => {
+  const [callCenterList, setCallCenterList] = useState<CallCenterContact[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [formData, setFormData] = useState(initialForm);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [callToDelete, setCallToDelete] = useState<CallCenter | null>(null);
+  const [formData, setFormData] = useState<CallCenterFormData>(initialForm);
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [callToDelete, setCallToDelete] = useState<CallCenterContact | null>(null);
+
+  const loadContacts = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await apiFetch<CallCenterContact[]>("/api/v1/call-center");
+      setCallCenterList(data || []);
+    } catch (err: any) {
+      setError(err.message || "Failed to load call center contacts");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSubmit = (
-    e: React.FormEvent<HTMLFormElement>
-  ) => {
+  useEffect(() => {
+    loadContacts();
+  }, []);
+
+  const handleFieldChange = (name: string, value: any) => {
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitting(true);
+    setError("");
 
-    if (editing) {
-      setCallCenterList((prev) =>
-        prev.map((item) =>
-          item.id === formData.id
-            ? { ...item, ...formData }
-            : item
-        )
-      );
-    } else {
-      setCallCenterList((prev) => [
-        {
-          ...formData,
-          id: `CALL-${Date.now()}`,
-        },
-        ...prev,
-      ]);
+    const { _id, ...payload } = formData;
+
+    try {
+      if (editing && _id) {
+        await apiFetch(`/api/v1/call-center/${_id}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await apiFetch("/api/v1/call-center", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+      }
+      setShowModal(false);
+      await loadContacts();
+    } catch (err: any) {
+      setError(err.message || "Failed to save contact");
+    } finally {
+      setSubmitting(false);
     }
-
-    setShowModal(false);
   };
 
   const openAddModal = () => {
@@ -95,71 +93,55 @@ export const CallCenterView = () => {
     setShowModal(true);
   };
 
-  const openEditModal = (
-    call: CallCenter
-  ) => {
+  const openEditModal = (contact: CallCenterContact) => {
     setEditing(true);
-    setFormData(call);
+    setFormData({
+      _id: contact._id,
+      contactType: contact.contactType,
+      contactValue: contact.contactValue,
+      availableHours: contact.availableHours || "",
+      assignedPerson: contact.assignedPerson || "",
+      status: contact.status,
+    });
     setShowModal(true);
   };
 
-  const openDeleteModal = (
-    call: CallCenter
-  ) => {
-    setCallToDelete(call);
+  const openDeleteModal = (contact: CallCenterContact) => {
+    setCallToDelete(contact);
     setShowDeleteModal(true);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!callToDelete) return;
-
-    setCallCenterList((prev) =>
-      prev.filter(
-        (item) =>
-          item.id !== callToDelete.id
-      )
-    );
-
-    setShowDeleteModal(false);
-    setCallToDelete(null);
+    try {
+      await apiFetch(`/api/v1/call-center/${callToDelete._id}`, { method: "DELETE" });
+      await loadContacts();
+    } catch (err: any) {
+      setError(err.message || "Failed to delete contact");
+    } finally {
+      setCallToDelete(null);
+      setShowDeleteModal(false);
+    }
   };
 
-  const columns: ColumnDef<CallCenter>[] = [
-    {
-      accessorKey: "contactType",
-      header: "Contact Type",
-      enableSorting: true,
-    },
-    {
-      accessorKey: "contactValue",
-      header: "Contact Value",
-      enableSorting: true,
-    },
-    {
-      accessorKey: "availableHours",
-      header: "Available Hours",
-      enableSorting: true,
-    },
-    {
-      accessorKey: "assignedPerson",
-      header: "Assigned Person",
-      enableSorting: true,
-    },
+  const columns: ColumnDef<CallCenterContact>[] = [
+    { accessorKey: "contactType", header: "Contact Type", enableSorting: true },
+    { accessorKey: "contactValue", header: "Contact Value", enableSorting: true },
+    { accessorKey: "availableHours", header: "Available Hours", enableSorting: true },
+    { accessorKey: "assignedPerson", header: "Assigned Person", enableSorting: true },
     {
       accessorKey: "lastUpdated",
       header: "Last Updated",
       enableSorting: true,
+      cell: ({ row }) =>
+        row.original.lastUpdated ? new Date(row.original.lastUpdated).toLocaleDateString() : "-",
     },
     {
       accessorKey: "status",
       header: "Status",
       cell: ({ row }) => (
         <span
-          className={`status-badge ${
-            row.original.status === "Active"
-              ? "status-active"
-              : "status-inactive"
-          }`}
+          className={`status-badge ${row.original.status === "Active" ? "status-active" : "status-inactive"}`}
         >
           {row.original.status}
         </span>
@@ -167,27 +149,13 @@ export const CallCenterView = () => {
     },
     {
       header: "Actions",
+      enableSorting: false,
       cell: ({ row }) => (
         <div style={{ display: "flex", gap: "8px" }}>
-          <button className="icon-btn">
-            <Eye size={14} />
-          </button>
-
-          <button
-            className="icon-btn"
-            onClick={() =>
-              openEditModal(row.original)
-            }
-          >
+          <button className="icon-btn" style={{ width: 28, height: 28 }} onClick={() => openEditModal(row.original)}>
             <Edit size={14} />
           </button>
-
-          <button
-            className="icon-btn"
-            onClick={() =>
-              openDeleteModal(row.original)
-            }
-          >
+          <button className="icon-btn" style={{ width: 28, height: 28 }} onClick={() => openDeleteModal(row.original)}>
             <Trash2 size={14} />
           </button>
         </div>
@@ -201,32 +169,72 @@ export const CallCenterView = () => {
         <div className="page-header">
           <div className="page-title">
             <h1>Call Center</h1>
-            <p>
-              Manage call center contacts and availability.
-            </p>
+            <p>Manage the contact directory (helpline, WhatsApp, email) shown to users.</p>
           </div>
 
           <div style={{ display: "flex", gap: "12px" }}>
-            <button className="icon-btn">
+            <button className="icon-btn" title="Filter">
               <Filter size={18} />
             </button>
-
-            <button
-              className="btn-primary"
-              onClick={openAddModal}
-            >
+            <button className="btn-primary" onClick={openAddModal}>
               <Plus size={18} />
               Add Contact
             </button>
           </div>
         </div>
 
+        {error && (
+          <div
+            style={{
+              background: "rgba(255, 61, 0, 0.1)",
+              color: "#ff3d00",
+              padding: "12px",
+              borderRadius: "8px",
+              marginBottom: "16px",
+            }}
+          >
+            {error}
+          </div>
+        )}
+
         <div className="card">
-          <DataTable
-            data={callCenterList}
-            columns={columns}
-            searchPlaceholder="Search contact type, value..."
-          />
+          {loading ? (
+            <div style={{ display: "flex", justifyContent: "center", padding: "40px" }}>
+              <Loader2 size={24} className="spin" />
+            </div>
+          ) : callCenterList.length === 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "60px 20px", textAlign: "center" }}>
+              <div
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: "rgba(43, 150, 79, 0.08)",
+                  color: "var(--accent-color)",
+                  marginBottom: 16,
+                }}
+              >
+                <Phone size={26} />
+              </div>
+              <h3 style={{ margin: 0, marginBottom: 6 }}>No contact channels yet</h3>
+              <p style={{ color: "var(--text-secondary)", marginBottom: 20 }}>
+                Add your first helpline, WhatsApp or email contact channel.
+              </p>
+              <button className="btn-primary" onClick={openAddModal}>
+                <Plus size={18} />
+                Add First Contact
+              </button>
+            </div>
+          ) : (
+            <DataTable
+              data={callCenterList}
+              columns={columns}
+              searchPlaceholder="Search by contact value, assigned person..."
+            />
+          )}
         </div>
       </div>
 
@@ -235,7 +243,8 @@ export const CallCenterView = () => {
         onClose={() => setShowModal(false)}
         editing={editing}
         formData={formData}
-        handleChange={handleChange}
+        submitting={submitting}
+        onFieldChange={handleFieldChange}
         handleSubmit={handleSubmit}
       />
 
@@ -247,7 +256,10 @@ export const CallCenterView = () => {
         }}
         onConfirm={handleDelete}
         personName={callToDelete?.contactValue}
+        title="Delete Contact"
       />
     </>
   );
 };
+
+export default CallCenterView;

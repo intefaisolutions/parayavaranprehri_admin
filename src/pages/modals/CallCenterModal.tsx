@@ -1,136 +1,118 @@
 import React from "react";
-import { X } from "lucide-react";
+import { X, Phone, Clock, UserCog, ShieldCheck, Tag } from "lucide-react";
+import { SmartForm } from "../../components/form/SmartForm";
+import type { FormSectionConfig } from "../../components/form/SmartForm";
 
-interface Props {
+export interface CallCenterFormData {
+  _id?: string;
+  contactType: string;
+  contactValue: string;
+  availableHours?: string;
+  assignedPerson?: string;
+  status: string;
+}
+
+interface CallCenterModalProps {
   isOpen: boolean;
   onClose: () => void;
   editing: boolean;
-  formData: any;
-  handleChange: (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => void;
-  handleSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
+  formData: CallCenterFormData;
+  submitting?: boolean;
+  error?: string;
+  onFieldChange: (name: string, value: any) => void;
+  handleSubmit: (e: React.FormEvent) => void;
 }
 
-const CallCenterModal: React.FC<Props> = ({
+const CallCenterModal: React.FC<CallCenterModalProps> = ({
   isOpen,
   onClose,
   editing,
   formData,
-  handleChange,
+  submitting,
+  error,
+  onFieldChange,
   handleSubmit,
 }) => {
   if (!isOpen) return null;
 
+  const sections: FormSectionConfig[] = [
+    {
+      title: "Contact Channel",
+      description: "How users can reach out through this contact channel.",
+      icon: Phone,
+      fields: [
+        {
+          name: "contactType",
+          label: "Contact Type",
+          type: "select",
+          icon: Tag,
+          required: true,
+          options: [
+            { label: "Phone", value: "Phone" },
+            { label: "Email", value: "Email" },
+            { label: "WhatsApp", value: "WhatsApp" },
+            { label: "Chat", value: "Chat" },
+          ],
+        },
+        {
+          name: "contactValue",
+          label: "Contact Value",
+          type: "text",
+          icon: Phone,
+          required: true,
+          placeholder: "e.g. +91 9876543210 or support@company.com",
+          span: 2,
+        },
+        {
+          name: "availableHours",
+          label: "Available Hours",
+          type: "text",
+          icon: Clock,
+          placeholder: "e.g. 09:00 AM - 06:00 PM or 24x7",
+        },
+      ],
+    },
+    {
+      title: "Ownership & Status",
+      icon: ShieldCheck,
+      fields: [
+        { name: "assignedPerson", label: "Assigned Person", type: "text", icon: UserCog },
+        {
+          name: "status",
+          label: "Status",
+          type: "select",
+          icon: ShieldCheck,
+          required: true,
+          options: [
+            { label: "Active", value: "Active" },
+            { label: "Inactive", value: "Inactive" },
+          ],
+        },
+      ],
+    },
+  ];
+
   return (
     <div className="modal-overlay">
-      <div className="modal">
+      <div className="modal" style={{ width: 560 }}>
         <div className="modal-header">
-          <h2>
-            {editing ? "Edit Call Center" : "Add Call Center"}
-          </h2>
-
-          <button
-            className="icon-btn"
-            onClick={onClose}
-          >
+          <h2>{editing ? "Edit Contact" : "Add Contact"}</h2>
+          <button className="icon-btn" onClick={onClose}>
             <X size={18} />
           </button>
         </div>
 
-        <form
-          className="modal-form"
+        <SmartForm
+          sections={sections}
+          formData={formData}
+          onFieldChange={onFieldChange}
           onSubmit={handleSubmit}
-        >
-          <div className="form-group">
-            <label>Contact Type</label>
-
-            <select
-              name="contactType"
-              value={formData.contactType}
-              onChange={handleChange}
-            >
-              <option>Phone</option>
-              <option>Email</option>
-              <option>WhatsApp</option>
-              <option>Chat</option>
-            </select>
-          </div>
-
-          <div className="form-group">
-            <label>Contact Value</label>
-
-            <input
-              name="contactValue"
-              value={formData.contactValue}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Available Hours</label>
-
-            <input
-              name="availableHours"
-              value={formData.availableHours}
-              onChange={handleChange}
-              placeholder="09:00 AM - 06:00 PM"
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Assigned Person</label>
-
-            <input
-              name="assignedPerson"
-              value={formData.assignedPerson}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Last Updated</label>
-
-            <input
-              type="date"
-              name="lastUpdated"
-              value={formData.lastUpdated}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Status</label>
-
-            <select
-              name="status"
-              value={formData.status}
-              onChange={handleChange}
-            >
-              <option>Active</option>
-              <option>Inactive</option>
-            </select>
-          </div>
-
-          <div className="modal-actions">
-            <button
-              type="button"
-              className="btn-danger"
-              onClick={onClose}
-            >
-              Cancel
-            </button>
-
-            <button
-              type="submit"
-              className="btn-primary"
-            >
-              {editing
-                ? "Update Contact"
-                : "Add Contact"}
-            </button>
-          </div>
-        </form>
+          submitting={submitting}
+          error={error}
+          submitLabel={editing ? "Update Contact" : "Add Contact"}
+          cancelLabel="Cancel"
+          onCancel={onClose}
+        />
       </div>
     </div>
   );

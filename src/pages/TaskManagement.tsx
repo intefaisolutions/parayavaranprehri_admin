@@ -1,168 +1,86 @@
-import React, { useState } from "react";
-import { Plus, Filter, Edit, Trash2, Eye } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { Plus, Filter, Edit, Trash2, Loader2, ClipboardList } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import type { ColumnDef } from "@tanstack/react-table";
 import DataTable from "../components/DataTable";
 import DeleteConfirmModal from "./modals/DeleteConfirmModal";
+import { apiFetch } from "../utils/apiConfig";
 
 interface Task {
-  id: string;
+  _id: string;
   taskTitle: string;
+  description?: string;
   taskType: string;
-  assignedMitra: string;
-  vidhanSabha: string;
-  zone: string;
-  sector: string;
+  assignedMitra?: string;
+  vidhanSabha?: string;
+  zone?: string;
+  sector?: string;
   dueDate: string;
   priority: string;
   status: string;
 }
 
 export const TasksView = () => {
-  const initialForm = {
-    id: "",
-    taskTitle: "",
-    taskType: "",
-    assignedMitra: "",
-    vidhanSabha: "",
-    zone: "",
-    sector: "",
-    dueDate: "",
-    priority: "Medium",
-    status: "Pending",
-  };
-
   const navigate = useNavigate();
 
-  const [tasks, setTasks] = useState<Task[]>(
-    Array.from({ length: 100 }, (_, i) => ({
-      id: `TSK-${String(i + 1).padStart(3, "0")}`,
-      taskTitle: `Plantation Survey ${i + 1}`,
-      taskType: i % 2 === 0 ? "Survey" : "Plantation",
-      assignedMitra: `Mitra ${i + 1}`,
-      vidhanSabha: `Vidhan Sabha ${i + 1}`,
-      zone: `Zone ${i % 5 + 1}`,
-      sector: `Sector ${i % 10 + 1}`,
-      dueDate: "2026-02-15",
-      priority: i % 3 === 0 ? "High" : "Medium",
-      status: i % 2 === 0 ? "Pending" : "Completed",
-    }))
-  );
-
-  const [showModal, setShowModal] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [formData, setFormData] = useState(initialForm);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
-  };
-
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-
-    if (editing) {
-      setTasks((prev) =>
-        prev.map((task) =>
-          task.id === formData.id ? { ...formData } : task
-        )
-      );
-    } else {
-      setTasks((prev) => [
-        {
-          id: formData.id,
-          taskTitle: formData.taskTitle,
-          taskType: formData.taskType,
-          assignedMitra: formData.assignedMitra,
-          vidhanSabha: formData.vidhanSabha,
-          zone: formData.zone,
-          sector: formData.sector,
-          dueDate: formData.dueDate,
-          priority: formData.priority,
-          status: formData.status,
-        },
-        ...prev,
-      ]);
+  const loadTasks = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await apiFetch<Task[]>("/api/v1/tasks");
+      setTasks(data || []);
+    } catch (err: any) {
+      setError(err.message || "Failed to load tasks");
+    } finally {
+      setLoading(false);
     }
-
-    setShowModal(false);
   };
 
-  const openAddModal = () => {
-    setEditing(false);
-    setFormData(initialForm);
-    setShowModal(true);
-  };
+  useEffect(() => {
+    loadTasks();
+  }, []);
 
-  const openEditModal = (task: Task) => {
-    setEditing(true);
-    setFormData(task);
-    setShowModal(true);
-  };
+  const openAddPage = () => navigate("/tasks/add");
+  const openEditPage = (task: Task) => navigate("/tasks/edit", { state: { task } });
 
   const openDeleteModal = (task: Task) => {
     setTaskToDelete(task);
     setShowDeleteModal(true);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!taskToDelete) return;
-
-    setTasks((prev) =>
-      prev.filter((task) => task.id !== taskToDelete.id)
-    );
-
-    setShowDeleteModal(false);
-    setTaskToDelete(null);
+    try {
+      await apiFetch(`/api/v1/tasks/${taskToDelete._id}`, { method: "DELETE" });
+      await loadTasks();
+    } catch (err: any) {
+      setError(err.message || "Failed to delete task");
+    } finally {
+      setTaskToDelete(null);
+      setShowDeleteModal(false);
+    }
   };
 
   const columns: ColumnDef<Task>[] = [
-    {
-      accessorKey: "id",
-      header: "Task ID",
-      enableSorting: true,
-    },
-    {
-      accessorKey: "taskTitle",
-      header: "Task Title",
-      enableSorting: true,
-    },
-    {
-      accessorKey: "taskType",
-      header: "Task Type",
-      enableSorting: true,
-    },
-    {
-      accessorKey: "assignedMitra",
-      header: "Assigned Mitra",
-      enableSorting: true,
-    },
-    {
-      accessorKey: "vidhanSabha",
-      header: "Vidhan Sabha",
-      enableSorting: true,
-    },
-    {
-      accessorKey: "zone",
-      header: "Zone",
-      enableSorting: true,
-    },
-    {
-      accessorKey: "sector",
-      header: "Sector",
-      enableSorting: true,
-    },
+    { accessorKey: "taskTitle", header: "Task Title", enableSorting: true },
+    { accessorKey: "taskType", header: "Task Type", enableSorting: true },
+    { accessorKey: "assignedMitra", header: "Assigned Mitra", enableSorting: true },
+    { accessorKey: "vidhanSabha", header: "Vidhan Sabha", enableSorting: true },
+    { accessorKey: "zone", header: "Zone", enableSorting: true },
+    { accessorKey: "sector", header: "Sector", enableSorting: true },
     {
       accessorKey: "dueDate",
       header: "Due Date",
       enableSorting: true,
+      cell: ({ row }) =>
+        row.original.dueDate ? new Date(row.original.dueDate).toLocaleDateString() : "-",
     },
     {
       accessorKey: "priority",
@@ -170,9 +88,7 @@ export const TasksView = () => {
       cell: ({ row }) => (
         <span
           className={`status-badge ${
-            row.original.priority === "High"
-              ? "status-inactive"
-              : "status-active"
+            row.original.priority === "High" ? "status-inactive" : "status-active"
           }`}
         >
           {row.original.priority}
@@ -187,6 +103,8 @@ export const TasksView = () => {
           className={`status-badge ${
             row.original.status === "Completed"
               ? "status-active"
+              : row.original.status === "In Progress"
+              ? "status-warning"
               : "status-inactive"
           }`}
         >
@@ -196,32 +114,13 @@ export const TasksView = () => {
     },
     {
       header: "Actions",
+      enableSorting: false,
       cell: ({ row }) => (
         <div style={{ display: "flex", gap: "8px" }}>
-          <button
-            className="icon-btn"
-            style={{ width: 28, height: 28 }}
-          >
-            <Eye size={14} />
-          </button>
-
-          <button
-            className="icon-btn"
-            style={{ width: 28, height: 28 }}
-            onClick={() =>
-              navigate("/tasks/edit", {
-                state: { task: row.original },
-              })
-            }
-          >
+          <button className="icon-btn" style={{ width: 28, height: 28 }} onClick={() => openEditPage(row.original)}>
             <Edit size={14} />
           </button>
-
-          <button
-            className="icon-btn"
-            style={{ width: 28, height: 28 }}
-            onClick={() => openDeleteModal(row.original)}
-          >
+          <button className="icon-btn" style={{ width: 28, height: 28 }} onClick={() => openDeleteModal(row.original)}>
             <Trash2 size={14} />
           </button>
         </div>
@@ -239,26 +138,68 @@ export const TasksView = () => {
           </div>
 
           <div style={{ display: "flex", gap: "12px" }}>
-            <button className="icon-btn">
+            <button className="icon-btn" title="Filter">
               <Filter size={18} />
             </button>
-
-            <button
-              className="btn-primary"
-              onClick={() => navigate("/tasks/add")}
-            >
+            <button className="btn-primary" onClick={openAddPage}>
               <Plus size={18} />
               Add Task
             </button>
           </div>
         </div>
 
+        {error && (
+          <div
+            style={{
+              background: "rgba(255, 61, 0, 0.1)",
+              color: "#ff3d00",
+              padding: "12px",
+              borderRadius: "8px",
+              marginBottom: "16px",
+            }}
+          >
+            {error}
+          </div>
+        )}
+
         <div className="card">
-          <DataTable
-            data={tasks}
-            columns={columns}
-            searchPlaceholder="Search task ID, title, mitra..."
-          />
+          {loading ? (
+            <div style={{ display: "flex", justifyContent: "center", padding: "40px" }}>
+              <Loader2 size={24} className="spin" />
+            </div>
+          ) : tasks.length === 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "60px 20px", textAlign: "center" }}>
+              <div
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: "rgba(43, 150, 79, 0.08)",
+                  color: "var(--accent-color)",
+                  marginBottom: 16,
+                }}
+              >
+                <ClipboardList size={26} />
+              </div>
+              <h3 style={{ margin: 0, marginBottom: 6 }}>No tasks yet</h3>
+              <p style={{ color: "var(--text-secondary)", marginBottom: 20 }}>
+                Create your first task to start assigning work to Mitras.
+              </p>
+              <button className="btn-primary" onClick={openAddPage}>
+                <Plus size={18} />
+                Add First Task
+              </button>
+            </div>
+          ) : (
+            <DataTable
+              data={tasks}
+              columns={columns}
+              searchPlaceholder="Search by title, mitra, zone, sector..."
+            />
+          )}
         </div>
       </div>
 
@@ -270,7 +211,10 @@ export const TasksView = () => {
         }}
         onConfirm={handleDelete}
         personName={taskToDelete?.taskTitle}
+        title="Delete Task"
       />
     </>
   );
 };
+
+export default TasksView;

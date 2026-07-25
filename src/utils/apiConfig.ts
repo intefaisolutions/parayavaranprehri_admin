@@ -125,6 +125,41 @@ export const apiFetch = async <T = any>(
   return (body?.data ?? body) as T;
 };
 
+/**
+ * Wrapper around fetch (mirrors apiFetch) for endpoints where the caller also
+ * needs the pagination `meta` (specifically `meta.total`), not just the plain
+ * items array that apiFetch returns. Used by dashboard-style stat widgets.
+ *
+ * Falls back to `items.length` as the total when the backend endpoint has no
+ * pagination meta (e.g. list endpoints that return a plain array).
+ *
+ * @param endpoint - The API endpoint (e.g., '/api/v1/persons?limit=1')
+ */
+export const apiFetchMeta = async <T = any>(
+  endpoint: string,
+): Promise<{ items: T[]; total: number }> => {
+  const token = localStorage.getItem('accessToken');
+
+  const res = await fetch(getApiUrl(endpoint), {
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+
+  const isJson = res.headers.get('content-type')?.includes('application/json');
+  const body = isJson ? await res.json().catch(() => null) : null;
+
+  if (!res.ok) {
+    const message = body?.message || body?.error || `Request failed (${res.status})`;
+    throw new Error(Array.isArray(message) ? message.join(', ') : message);
+  }
+
+  const items = (body?.data ?? []) as T[];
+  const total = body?.meta?.total ?? (Array.isArray(items) ? items.length : 0);
+  return { items, total };
+};
+
 export interface UploadResult {
   url: string;
   key: string;

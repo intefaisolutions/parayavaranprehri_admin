@@ -34,6 +34,10 @@ export interface FieldConfig {
   disabled?: boolean;
   helpText?: string;
   options?: SelectOption[];
+  /** For "select" fields whose choices depend on another field's current value
+   * (e.g. District options depending on the selected State) - takes priority
+   * over the static `options` list when provided. */
+  optionsFor?: (formData: Record<string, any>) => SelectOption[];
   rows?: number;
   span?: 1 | 2;
   /** S3 folder category used when this field uploads a file (image/gallery types). */
@@ -47,6 +51,8 @@ export interface FormSectionConfig {
   description?: string;
   icon?: LucideIcon;
   fields: FieldConfig[];
+  /** Only renders the whole section when this returns true (or is omitted). */
+  visibleWhen?: (formData: Record<string, any>) => boolean;
 }
 
 interface SmartFieldProps {
@@ -370,6 +376,8 @@ export const SmartForm: React.FC<SmartFormProps> = ({
       )}
 
       {sections.map((section, idx) => {
+        if (section.visibleWhen && !section.visibleWhen(formData)) return null;
+
         const visibleFields = section.fields.filter(
           (f) => !f.visibleWhen || f.visibleWhen(formData)
         );
@@ -397,7 +405,11 @@ export const SmartForm: React.FC<SmartFormProps> = ({
               {visibleFields.map((field) => (
                 <SmartField
                   key={field.name}
-                  field={field}
+                  field={
+                    field.optionsFor
+                      ? { ...field, options: field.optionsFor(formData) }
+                      : field
+                  }
                   value={formData[field.name]}
                   onChange={onFieldChange}
                 />

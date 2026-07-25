@@ -1,133 +1,93 @@
 import React from "react";
-import { X } from "lucide-react";
+import { X, Settings as SettingsIcon, Tag, FileText, ToggleLeft } from "lucide-react";
+import { SmartForm } from "../../components/form/SmartForm";
+import type { FormSectionConfig } from "../../components/form/SmartForm";
 
-interface Props {
+export interface SettingFormData {
+  _id?: string;
+  settingName: string;
+  category: string;
+  value: string;
+  isActive: boolean;
+}
+
+interface SystemSettingModalProps {
   isOpen: boolean;
   onClose: () => void;
   editing: boolean;
-  formData: any;
-  handleChange: (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => void;
-  handleSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
+  formData: SettingFormData;
+  submitting?: boolean;
+  onFieldChange: (name: string, value: any) => void;
+  handleSubmit: (e: React.FormEvent) => void;
 }
 
-const SystemSettingModal: React.FC<Props> = ({
+const CATEGORY_OPTIONS = [
+  { label: "General", value: "General" },
+  { label: "Security", value: "Security" },
+  { label: "Notification", value: "Notification" },
+  { label: "Email", value: "Email" },
+  { label: "Payment", value: "Payment" },
+  { label: "User Management", value: "User Management" },
+];
+
+const SystemSettingModal: React.FC<SystemSettingModalProps> = ({
   isOpen,
   onClose,
   editing,
   formData,
-  handleChange,
+  submitting,
+  onFieldChange,
   handleSubmit,
 }) => {
   if (!isOpen) return null;
 
+  const sections: FormSectionConfig[] = [
+    {
+      title: "Setting Details",
+      description: "Define the configuration key, its category, and its current value.",
+      icon: SettingsIcon,
+      fields: [
+        { name: "settingName", label: "Setting Name", type: "text", icon: SettingsIcon, required: true, span: 2 },
+        {
+          name: "category",
+          label: "Category",
+          type: "select",
+          icon: Tag,
+          required: true,
+          options: CATEGORY_OPTIONS,
+        },
+        {
+          name: "isActive",
+          label: "Active",
+          type: "boolean",
+          icon: ToggleLeft,
+          helpText: "Inactive settings are ignored by the application.",
+        },
+        { name: "value", label: "Value", type: "textarea", icon: FileText, required: true, span: 2 },
+      ],
+    },
+  ];
+
   return (
     <div className="modal-overlay">
-      <div className="modal">
+      <div className="modal" style={{ width: 640 }}>
         <div className="modal-header">
-          <h2>
-            {editing
-              ? "Edit System Setting"
-              : "Add System Setting"}
-          </h2>
-
-          <button
-            className="icon-btn"
-            onClick={onClose}
-          >
+          <h2>{editing ? "Edit System Setting" : "Add System Setting"}</h2>
+          <button className="icon-btn" onClick={onClose}>
             <X size={18} />
           </button>
         </div>
 
-        <form
-          className="modal-form"
+        <SmartForm
+          sections={sections}
+          formData={formData}
+          onFieldChange={onFieldChange}
           onSubmit={handleSubmit}
-        >
-          <div className="form-group">
-            <label>Setting Name</label>
-            <input
-              name="settingName"
-              value={formData.settingName}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Category</label>
-            <select
-              name="category"
-              value={formData.category}
-              onChange={handleChange}
-            >
-              <option>General</option>
-              <option>Security</option>
-              <option>Notification</option>
-              <option>Email</option>
-              <option>Payment</option>
-              <option>User Management</option>
-            </select>
-          </div>
-
-          <div className="form-group">
-            <label>Value</label>
-            <input
-              name="value"
-              value={formData.value}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Updated By</label>
-            <input
-              name="updatedBy"
-              value={formData.updatedBy}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Last Updated Date</label>
-            <input
-              type="date"
-              name="lastUpdatedDate"
-              value={formData.lastUpdatedDate}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Status</label>
-            <select
-              name="status"
-              value={formData.status}
-              onChange={handleChange}
-            >
-              <option>Active</option>
-              <option>Inactive</option>
-            </select>
-          </div>
-
-          <div className="modal-actions">
-            <button
-              type="button"
-              className="btn-danger"
-              onClick={onClose}
-            >
-              Cancel
-            </button>
-
-            <button
-              type="submit"
-              className="btn-primary"
-            >
-              {editing
-                ? "Update Setting"
-                : "Add Setting"}
-            </button>
-          </div>
-        </form>
+          submitting={submitting}
+          submitLabel={editing ? "Update Setting" : "Add Setting"}
+          cancelLabel="Cancel"
+          onCancel={onClose}
+        />
       </div>
     </div>
   );

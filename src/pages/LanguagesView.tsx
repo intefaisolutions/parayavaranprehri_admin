@@ -1,98 +1,102 @@
-import React, { useState } from "react";
-import { Plus, Filter, Edit, Trash2, Eye } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { Plus, Filter, Edit, Trash2, Loader2, Languages as LanguagesIcon, ToggleLeft, ToggleRight } from "lucide-react";
+import type { ColumnDef } from "@tanstack/react-table";
 import DataTable from "../components/DataTable";
 import LanguageModal from "./modals/LanguageModal";
+import type { LanguageFormData } from "./modals/LanguageModal";
 import DeleteConfirmModal from "./modals/DeleteConfirmModal";
+import { apiFetch } from "../utils/apiConfig";
 
 interface Language {
-  id: string;
+  _id: string;
   languageName: string;
   languageCode: string;
-  translationProgress: string;
-  addedDate: string;
-  updatedDate: string;
+  translationProgress: number;
   status: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
-export const LanguagesView = () => {
-  const initialForm = {
-    id: "",
-    languageName: "",
-    languageCode: "",
-    translationProgress: "0%",
-    addedDate: "",
-    updatedDate: "",
-    status: "Active",
-  };
+const initialForm: LanguageFormData = {
+  languageName: "",
+  languageCode: "",
+  translationProgress: 0,
+  status: "Active",
+};
 
-  const [languageList, setLanguageList] = useState<Language[]>(
-    Array.from({ length: 100 }, (_, i) => ({
-      id: `LANG-${String(i + 1).padStart(3, "0")}`,
-      languageName:
-        i % 3 === 0
-          ? "English"
-          : i % 3 === 1
-          ? "Hindi"
-          : "Spanish",
-      languageCode:
-        i % 3 === 0
-          ? "EN"
-          : i % 3 === 1
-          ? "HI"
-          : "ES",
-      translationProgress:
-        `${(i * 5) % 101}%`,
-      addedDate:
-        "2026-01-10",
-      updatedDate:
-        "2026-02-20",
-      status:
-        i % 2 === 0
-          ? "Active"
-          : "Inactive",
-    }))
-  );
+const formatDate = (value?: string) => {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleDateString();
+};
+
+export const LanguagesView = () => {
+  const [languageList, setLanguageList] = useState<Language[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [formData, setFormData] = useState(initialForm);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [languageToDelete, setLanguageToDelete] =
-    useState<Language | null>(null);
+  const [formData, setFormData] = useState<LanguageFormData>(initialForm);
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [languageToDelete, setLanguageToDelete] = useState<Language | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+
+  const loadLanguages = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await apiFetch<Language[]>("/api/v1/languages?limit=100");
+      setLanguageList(data || []);
+    } catch (err: any) {
+      setError(err.message || "Failed to load Languages");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSubmit = (
-    e: React.FormEvent<HTMLFormElement>
-  ) => {
+  useEffect(() => {
+    loadLanguages();
+  }, []);
+
+  const handleFieldChange = (name: string, value: any) => {
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitting(true);
+    setError("");
 
-    if (editing) {
-      setLanguageList((prev) =>
-        prev.map((item) =>
-          item.id === formData.id
-            ? { ...item, ...formData }
-            : item
-        )
-      );
-    } else {
-      setLanguageList((prev) => [
-        {
-          ...formData,
-          id: `LANG-${Date.now()}`,
-        },
-        ...prev,
-      ]);
+    const { _id, ...payload } = formData;
+    const body = {
+      ...payload,
+      translationProgress:
+        payload.translationProgress === "" ? 0 : Number(payload.translationProgress),
+    };
+
+    try {
+      if (editing && _id) {
+        await apiFetch(`/api/v1/languages/${_id}`, {
+          method: "PATCH",
+          body: JSON.stringify(body),
+        });
+      } else {
+        await apiFetch("/api/v1/languages", {
+          method: "POST",
+          body: JSON.stringify(body),
+        });
+      }
+      setShowModal(false);
+      await loadLanguages();
+    } catch (err: any) {
+      setError(err.message || "Failed to save Language");
+    } finally {
+      setSubmitting(false);
     }
-
-    setShowModal(false);
   };
 
   const openAddModal = () => {
@@ -101,33 +105,50 @@ export const LanguagesView = () => {
     setShowModal(true);
   };
 
-  const openEditModal = (
-    language: Language
-  ) => {
+  const openEditModal = (language: Language) => {
     setEditing(true);
-    setFormData(language);
+    setFormData({
+      _id: language._id,
+      languageName: language.languageName,
+      languageCode: language.languageCode,
+      translationProgress: language.translationProgress,
+      status: language.status,
+    });
     setShowModal(true);
   };
 
-  const openDeleteModal = (
-    language: Language
-  ) => {
+  const openDeleteModal = (language: Language) => {
     setLanguageToDelete(language);
     setShowDeleteModal(true);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!languageToDelete) return;
+    try {
+      await apiFetch(`/api/v1/languages/${languageToDelete._id}`, { method: "DELETE" });
+      await loadLanguages();
+    } catch (err: any) {
+      setError(err.message || "Failed to delete Language");
+    } finally {
+      setLanguageToDelete(null);
+      setShowDeleteModal(false);
+    }
+  };
 
-    setLanguageList((prev) =>
-      prev.filter(
-        (item) =>
-          item.id !== languageToDelete.id
-      )
-    );
-
-    setShowDeleteModal(false);
-    setLanguageToDelete(null);
+  const toggleStatus = async (language: Language) => {
+    setTogglingId(language._id);
+    try {
+      const nextStatus = language.status === "Active" ? "Inactive" : "Active";
+      await apiFetch(`/api/v1/languages/${language._id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      await loadLanguages();
+    } catch (err: any) {
+      setError(err.message || "Failed to update status");
+    } finally {
+      setTogglingId(null);
+    }
   };
 
   const columns: ColumnDef<Language>[] = [
@@ -145,62 +166,54 @@ export const LanguagesView = () => {
       accessorKey: "translationProgress",
       header: "Translation Progress",
       enableSorting: true,
-      cell: ({ row }) => (
-        <div>
-          <span>
-            {row.original.translationProgress}
-          </span>
-        </div>
-      ),
+      cell: ({ row }) => <span>{row.original.translationProgress}%</span>,
     },
     {
-      accessorKey: "addedDate",
+      accessorKey: "createdAt",
       header: "Added Date",
       enableSorting: true,
+      cell: ({ row }) => <span>{formatDate(row.original.createdAt)}</span>,
     },
     {
-      accessorKey: "updatedDate",
+      accessorKey: "updatedAt",
       header: "Updated Date",
       enableSorting: true,
+      cell: ({ row }) => <span>{formatDate(row.original.updatedAt)}</span>,
     },
     {
       accessorKey: "status",
       header: "Status",
+      enableSorting: false,
       cell: ({ row }) => (
-        <span
+        <button
           className={`status-badge ${
-            row.original.status === "Active"
-              ? "status-active"
-              : "status-inactive"
+            row.original.status === "Active" ? "status-active" : "status-inactive"
           }`}
+          style={{ border: "none", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}
+          onClick={() => toggleStatus(row.original)}
+          disabled={togglingId === row.original._id}
+          title="Click to toggle"
         >
+          {togglingId === row.original._id ? (
+            <Loader2 size={12} className="spin" />
+          ) : row.original.status === "Active" ? (
+            <ToggleRight size={14} />
+          ) : (
+            <ToggleLeft size={14} />
+          )}
           {row.original.status}
-        </span>
+        </button>
       ),
     },
     {
       header: "Actions",
       cell: ({ row }) => (
         <div style={{ display: "flex", gap: "8px" }}>
-          <button className="icon-btn">
-            <Eye size={14} />
-          </button>
-
-          <button
-            className="icon-btn"
-            onClick={() =>
-              openEditModal(row.original)
-            }
-          >
+          <button className="icon-btn" onClick={() => openEditModal(row.original)}>
             <Edit size={14} />
           </button>
 
-          <button
-            className="icon-btn"
-            onClick={() =>
-              openDeleteModal(row.original)
-            }
-          >
+          <button className="icon-btn" onClick={() => openDeleteModal(row.original)}>
             <Trash2 size={14} />
           </button>
         </div>
@@ -214,9 +227,7 @@ export const LanguagesView = () => {
         <div className="page-header">
           <div className="page-title">
             <h1>Languages</h1>
-            <p>
-              Manage application languages and translations.
-            </p>
+            <p>Manage application languages and translations.</p>
           </div>
 
           <div style={{ display: "flex", gap: "12px" }}>
@@ -224,22 +235,43 @@ export const LanguagesView = () => {
               <Filter size={18} />
             </button>
 
-            <button
-              className="btn-primary"
-              onClick={openAddModal}
-            >
+            <button className="btn-primary" onClick={openAddModal}>
               <Plus size={18} />
               Add Language
             </button>
           </div>
         </div>
 
+        {error && (
+          <div style={{ background: 'rgba(255, 61, 0, 0.1)', color: '#ff3d00', padding: '12px', borderRadius: '8px', marginBottom: '16px' }}>
+            {error}
+          </div>
+        )}
+
         <div className="card">
-          <DataTable
-            data={languageList}
-            columns={columns}
-            searchPlaceholder="Search language name, code..."
-          />
+          {loading ? (
+            <div style={{ display: "flex", justifyContent: "center", padding: "40px" }}>
+              <Loader2 size={24} className="spin" />
+            </div>
+          ) : languageList.length === 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px", padding: "60px 20px", textAlign: "center" }}>
+              <LanguagesIcon size={40} color="var(--text-secondary)" />
+              <h3 style={{ margin: 0 }}>No languages yet</h3>
+              <p style={{ margin: 0, color: "var(--text-secondary)" }}>
+                Add your first language to start managing translations.
+              </p>
+              <button className="btn-primary" onClick={openAddModal}>
+                <Plus size={16} />
+                Add first language
+              </button>
+            </div>
+          ) : (
+            <DataTable
+              data={languageList}
+              columns={columns}
+              searchPlaceholder="Search language name, code..."
+            />
+          )}
         </div>
       </div>
 
@@ -248,7 +280,9 @@ export const LanguagesView = () => {
         onClose={() => setShowModal(false)}
         editing={editing}
         formData={formData}
-        handleChange={handleChange}
+        submitting={submitting}
+        error={error}
+        onFieldChange={handleFieldChange}
         handleSubmit={handleSubmit}
       />
 
@@ -260,6 +294,7 @@ export const LanguagesView = () => {
         }}
         onConfirm={handleDelete}
         personName={languageToDelete?.languageName}
+        title="Delete Language"
       />
     </>
   );

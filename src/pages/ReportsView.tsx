@@ -1,55 +1,76 @@
-import React, { useState } from "react";
-import { Plus, Filter, Edit, Trash2, Eye, Download } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { Plus, Filter, Edit, Trash2, Download, Loader2, FileText } from "lucide-react";
+import type { ColumnDef } from "@tanstack/react-table";
 import DataTable from "../components/DataTable";
 import DeleteConfirmModal from "./modals/DeleteConfirmModal";
 import { useNavigate } from "react-router-dom";
+import { apiFetch } from "../utils/apiConfig";
 
 interface Report {
-  id: string;
+  _id: string;
   reportName: string;
   reportType: string;
   generatedBy: string;
-  locationFilter: string;
-  dateRange: string;
-  generatedDate: string;
+  locationFilter?: string;
+  startDate: string;
+  endDate: string;
   fileType: string;
+  fileUrl?: string;
   status: string;
+  createdAt?: string;
 }
+
+const formatDate = (value?: string) => {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleDateString();
+};
 
 export const ReportsView = () => {
   const navigate = useNavigate();
 
-  const [reports, setReports] = useState<Report[]>(
-    Array.from({ length: 50 }, (_, i) => ({
-      id: `REP-${String(i + 1).padStart(3, "0")}`,
-      reportName: `Environment Report ${i + 1}`,
-      reportType: i % 2 === 0 ? "Tree Report" : "Activity Report",
-      generatedBy: `Admin ${i + 1}`,
-      locationFilter: `District ${i + 1}`,
-      dateRange: "01-02-2026 to 15-02-2026",
-      generatedDate: "2026-02-15",
-      fileType: i % 2 === 0 ? "PDF" : "Excel",
-      status: "Generated",
-    }))
-  );
+  const [reports, setReports] = useState<Report[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [reportToDelete, setReportToDelete] = useState<Report | null>(null);
+
+  const loadReports = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await apiFetch<Report[]>("/api/v1/reports?limit=100");
+      setReports(data || []);
+    } catch (err: any) {
+      setError(err.message || "Failed to load Reports");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadReports();
+  }, []);
 
   const openDeleteModal = (report: Report) => {
     setReportToDelete(report);
     setShowDeleteModal(true);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!reportToDelete) return;
 
-    setReports((prev) =>
-      prev.filter((report) => report.id !== reportToDelete.id)
-    );
-
-    setReportToDelete(null);
-    setShowDeleteModal(false);
+    try {
+      await apiFetch(`/api/v1/reports/${reportToDelete._id}`, { method: "DELETE" });
+      await loadReports();
+    } catch (err: any) {
+      setError(err.message || "Failed to delete Report");
+    } finally {
+      setReportToDelete(null);
+      setShowDeleteModal(false);
+    }
   };
 
   const columns: ColumnDef<Report>[] = [
@@ -72,16 +93,21 @@ export const ReportsView = () => {
       accessorKey: "locationFilter",
       header: "Location Filter",
       enableSorting: true,
+      cell: ({ row }) => <span>{row.original.locationFilter || "-"}</span>,
     },
     {
-      accessorKey: "dateRange",
       header: "Date Range",
-      enableSorting: true,
+      cell: ({ row }) => (
+        <span>
+          {formatDate(row.original.startDate)} to {formatDate(row.original.endDate)}
+        </span>
+      ),
     },
     {
-      accessorKey: "generatedDate",
+      accessorKey: "createdAt",
       header: "Generated Date",
       enableSorting: true,
+      cell: ({ row }) => <span>{formatDate(row.original.createdAt)}</span>,
     },
     {
       accessorKey: "fileType",
@@ -89,11 +115,31 @@ export const ReportsView = () => {
       enableSorting: true,
     },
     {
+      accessorKey: "status",
+      header: "Status",
+      enableSorting: false,
+      cell: ({ row }) => (
+        <span
+          className={`status-badge ${
+            row.original.status === "Generated"
+              ? "status-active"
+              : row.original.status === "Generating"
+              ? "status-warning"
+              : "status-inactive"
+          }`}
+        >
+          {row.original.status}
+        </span>
+      ),
+    },
+    {
       header: "Download",
-      cell: () => (
+      cell: ({ row }) => (
         <button
           className="icon-btn"
           style={{ width: 28, height: 28 }}
+          disabled={!row.original.fileUrl}
+          onClick={() => row.original.fileUrl && window.open(row.original.fileUrl, "_blank")}
         >
           <Download size={14} />
         </button>
@@ -103,13 +149,6 @@ export const ReportsView = () => {
       header: "Actions",
       cell: ({ row }) => (
         <div style={{ display: "flex", gap: "8px" }}>
-          <button
-            className="icon-btn"
-            style={{ width: 28, height: 28 }}
-          >
-            <Eye size={14} />
-          </button>
-
           <button
             className="icon-btn"
             style={{ width: 28, height: 28 }}
@@ -160,12 +199,36 @@ export const ReportsView = () => {
           </div>
         </div>
 
+        {error && (
+          <div style={{ background: 'rgba(255, 61, 0, 0.1)', color: '#ff3d00', padding: '12px', borderRadius: '8px', marginBottom: '16px' }}>
+            {error}
+          </div>
+        )}
+
         <div className="card">
-          <DataTable
-            data={reports}
-            columns={columns}
-            searchPlaceholder="Search report name, type..."
-          />
+          {loading ? (
+            <div style={{ display: "flex", justifyContent: "center", padding: "40px" }}>
+              <Loader2 size={24} className="spin" />
+            </div>
+          ) : reports.length === 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px", padding: "60px 20px", textAlign: "center" }}>
+              <FileText size={40} color="var(--text-secondary)" />
+              <h3 style={{ margin: 0 }}>No reports yet</h3>
+              <p style={{ margin: 0, color: "var(--text-secondary)" }}>
+                Generate your first report to see it listed here.
+              </p>
+              <button className="btn-primary" onClick={() => navigate("/reports/add")}>
+                <Plus size={16} />
+                Generate first report
+              </button>
+            </div>
+          ) : (
+            <DataTable
+              data={reports}
+              columns={columns}
+              searchPlaceholder="Search report name, type..."
+            />
+          )}
         </div>
       </div>
 
@@ -177,6 +240,7 @@ export const ReportsView = () => {
         }}
         onConfirm={handleDelete}
         personName={reportToDelete?.reportName}
+        title="Delete Report"
       />
     </>
   );

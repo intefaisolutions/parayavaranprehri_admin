@@ -1,98 +1,90 @@
-import React, { useState } from "react";
-import { Plus, Filter, Edit, Trash2, Eye } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { Plus, Filter, Edit, Trash2, Loader2, Settings as SettingsIcon, ToggleLeft, ToggleRight } from "lucide-react";
+import type { ColumnDef } from "@tanstack/react-table";
 import DataTable from "../components/DataTable";
 import SystemSettingModal from "./modals/SystemSettingModal";
+import type { SettingFormData } from "./modals/SystemSettingModal";
 import DeleteConfirmModal from "./modals/DeleteConfirmModal";
+import { apiFetch } from "../utils/apiConfig";
 
 interface SystemSetting {
-  id: string;
+  _id: string;
   settingName: string;
   category: string;
   value: string;
-  updatedBy: string;
+  updatedBy?: string;
   lastUpdatedDate: string;
-  status: string;
+  isActive: boolean;
 }
 
-export const SettingsView = () => {
-  const initialForm = {
-    id: "",
-    settingName: "",
-    category: "General",
-    value: "",
-    updatedBy: "",
-    lastUpdatedDate: "",
-    status: "Active",
-  };
+const initialForm: SettingFormData = {
+  settingName: "",
+  category: "General",
+  value: "",
+  isActive: true,
+};
 
-  const [settingList, setSettingList] = useState<SystemSetting[]>(
-    Array.from({ length: 100 }, (_, i) => ({
-      id: `SET-${String(i + 1).padStart(3, "0")}`,
-      settingName:
-        i % 3 === 0
-          ? "Email Configuration"
-          : i % 3 === 1
-          ? "Notification Settings"
-          : "User Access Control",
-      category:
-        i % 2 === 0
-          ? "General"
-          : "Security",
-      value:
-        i % 2 === 0
-          ? "Enabled"
-          : "Disabled",
-      updatedBy:
-        `Admin ${i % 5 + 1}`,
-      lastUpdatedDate:
-        "2026-02-20",
-      status:
-        i % 2 === 0
-          ? "Active"
-          : "Inactive",
-    }))
-  );
+export const SettingsView = () => {
+  const [settingList, setSettingList] = useState<SystemSetting[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [formData, setFormData] = useState(initialForm);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [settingToDelete, setSettingToDelete] =
-    useState<SystemSetting | null>(null);
+  const [formData, setFormData] = useState<SettingFormData>(initialForm);
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [settingToDelete, setSettingToDelete] = useState<SystemSetting | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+
+  const loadSettings = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await apiFetch<SystemSetting[]>("/api/v1/settings?limit=100");
+      setSettingList(data || []);
+    } catch (err: any) {
+      setError(err.message || "Failed to load system settings");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSubmit = (
-    e: React.FormEvent<HTMLFormElement>
-  ) => {
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  const handleFieldChange = (name: string, value: any) => {
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitting(true);
+    setError("");
 
-    if (editing) {
-      setSettingList((prev) =>
-        prev.map((item) =>
-          item.id === formData.id
-            ? { ...item, ...formData }
-            : item
-        )
-      );
-    } else {
-      setSettingList((prev) => [
-        {
-          ...formData,
-          id: `SET-${Date.now()}`,
-        },
-        ...prev,
-      ]);
+    const { _id, ...payload } = formData;
+
+    try {
+      if (editing && _id) {
+        await apiFetch(`/api/v1/settings/${_id}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await apiFetch("/api/v1/settings", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+      }
+      setShowModal(false);
+      await loadSettings();
+    } catch (err: any) {
+      setError(err.message || "Failed to save setting");
+    } finally {
+      setSubmitting(false);
     }
-
-    setShowModal(false);
   };
 
   const openAddModal = () => {
@@ -101,99 +93,100 @@ export const SettingsView = () => {
     setShowModal(true);
   };
 
-  const openEditModal = (
-    setting: SystemSetting
-  ) => {
+  const openEditModal = (setting: SystemSetting) => {
     setEditing(true);
-    setFormData(setting);
+    setFormData({
+      _id: setting._id,
+      settingName: setting.settingName,
+      category: setting.category,
+      value: setting.value,
+      isActive: setting.isActive,
+    });
     setShowModal(true);
   };
 
-  const openDeleteModal = (
-    setting: SystemSetting
-  ) => {
+  const openDeleteModal = (setting: SystemSetting) => {
     setSettingToDelete(setting);
     setShowDeleteModal(true);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!settingToDelete) return;
+    try {
+      await apiFetch(`/api/v1/settings/${settingToDelete._id}`, { method: "DELETE" });
+      await loadSettings();
+    } catch (err: any) {
+      setError(err.message || "Failed to delete setting");
+    } finally {
+      setSettingToDelete(null);
+      setShowDeleteModal(false);
+    }
+  };
 
-    setSettingList((prev) =>
-      prev.filter(
-        (item) =>
-          item.id !== settingToDelete.id
-      )
-    );
-
-    setShowDeleteModal(false);
-    setSettingToDelete(null);
+  const toggleActive = async (setting: SystemSetting) => {
+    setTogglingId(setting._id);
+    try {
+      await apiFetch(`/api/v1/settings/${setting._id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ isActive: !setting.isActive }),
+      });
+      await loadSettings();
+    } catch (err: any) {
+      setError(err.message || "Failed to update status");
+    } finally {
+      setTogglingId(null);
+    }
   };
 
   const columns: ColumnDef<SystemSetting>[] = [
-    {
-      accessorKey: "settingName",
-      header: "Setting Name",
-      enableSorting: true,
-    },
-    {
-      accessorKey: "category",
-      header: "Category",
-      enableSorting: true,
-    },
-    {
-      accessorKey: "value",
-      header: "Value",
-      enableSorting: true,
-    },
+    { accessorKey: "settingName", header: "Setting Name", enableSorting: true },
+    { accessorKey: "category", header: "Category", enableSorting: true },
+    { accessorKey: "value", header: "Value", enableSorting: true },
     {
       accessorKey: "updatedBy",
       header: "Updated By",
       enableSorting: true,
+      cell: ({ row }) => row.original.updatedBy || "—",
     },
     {
       accessorKey: "lastUpdatedDate",
       header: "Last Updated Date",
       enableSorting: true,
+      cell: ({ row }) =>
+        row.original.lastUpdatedDate ? new Date(row.original.lastUpdatedDate).toLocaleString() : "—",
     },
     {
-      accessorKey: "status",
+      accessorKey: "isActive",
       header: "Status",
+      enableSorting: false,
       cell: ({ row }) => (
-        <span
-          className={`status-badge ${
-            row.original.status === "Active"
-              ? "status-active"
-              : "status-inactive"
-          }`}
+        <button
+          className={`status-badge ${row.original.isActive ? "status-active" : "status-inactive"}`}
+          style={{ border: "none", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}
+          onClick={() => toggleActive(row.original)}
+          disabled={togglingId === row.original._id}
+          title="Click to toggle"
         >
-          {row.original.status}
-        </span>
+          {togglingId === row.original._id ? (
+            <Loader2 size={12} className="spin" />
+          ) : row.original.isActive ? (
+            <ToggleRight size={14} />
+          ) : (
+            <ToggleLeft size={14} />
+          )}
+          {row.original.isActive ? "Active" : "Inactive"}
+        </button>
       ),
     },
     {
       header: "Actions",
+      enableSorting: false,
       cell: ({ row }) => (
         <div style={{ display: "flex", gap: "8px" }}>
-          <button className="icon-btn">
-            <Eye size={14} />
-          </button>
-
-          <button
-            className="icon-btn"
-            onClick={() =>
-              openEditModal(row.original)
-            }
-          >
+          <button className="icon-btn" style={{ width: 28, height: 28 }} onClick={() => openEditModal(row.original)}>
             <Edit size={14} />
           </button>
-
-          <button
-            className="icon-btn"
-            onClick={() =>
-              openDeleteModal(row.original)
-            }
-          >
+          <button className="icon-btn" style={{ width: 28, height: 28 }} onClick={() => openDeleteModal(row.original)}>
             <Trash2 size={14} />
           </button>
         </div>
@@ -207,32 +200,65 @@ export const SettingsView = () => {
         <div className="page-header">
           <div className="page-title">
             <h1>System Settings</h1>
-            <p>
-              Manage application configuration settings.
-            </p>
+            <p>Manage application configuration settings.</p>
           </div>
 
           <div style={{ display: "flex", gap: "12px" }}>
-            <button className="icon-btn">
+            <button className="icon-btn" title="Filter">
               <Filter size={18} />
             </button>
 
-            <button
-              className="btn-primary"
-              onClick={openAddModal}
-            >
+            <button className="btn-primary" onClick={openAddModal}>
               <Plus size={18} />
               Add Setting
             </button>
           </div>
         </div>
 
+        {error && (
+          <div
+            style={{
+              background: "rgba(255, 61, 0, 0.1)",
+              color: "#ff3d00",
+              padding: "12px",
+              borderRadius: "8px",
+              marginBottom: "16px",
+            }}
+          >
+            {error}
+          </div>
+        )}
+
         <div className="card">
-          <DataTable
-            data={settingList}
-            columns={columns}
-            searchPlaceholder="Search setting name, category..."
-          />
+          {loading ? (
+            <div style={{ display: "flex", justifyContent: "center", padding: "40px" }}>
+              <Loader2 size={24} className="spin" />
+            </div>
+          ) : settingList.length === 0 ? (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                padding: "60px 20px",
+                textAlign: "center",
+                color: "var(--text-secondary)",
+              }}
+            >
+              <SettingsIcon size={40} style={{ marginBottom: 16, opacity: 0.5 }} />
+              <p style={{ marginBottom: 16 }}>No system settings configured yet.</p>
+              <button className="btn-primary" onClick={openAddModal}>
+                <Plus size={18} />
+                Add your first setting
+              </button>
+            </div>
+          ) : (
+            <DataTable
+              data={settingList}
+              columns={columns}
+              searchPlaceholder="Search setting name, category..."
+            />
+          )}
         </div>
       </div>
 
@@ -241,7 +267,8 @@ export const SettingsView = () => {
         onClose={() => setShowModal(false)}
         editing={editing}
         formData={formData}
-        handleChange={handleChange}
+        submitting={submitting}
+        onFieldChange={handleFieldChange}
         handleSubmit={handleSubmit}
       />
 
@@ -253,7 +280,10 @@ export const SettingsView = () => {
         }}
         onConfirm={handleDelete}
         personName={settingToDelete?.settingName}
+        title="Delete Setting"
       />
     </>
   );
 };
+
+export default SettingsView;

@@ -1,170 +1,187 @@
 import React, { useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+import {
+  Calendar,
+  ClipboardList,
+  Flag,
+  Layers,
+  MapPin,
+  Landmark,
+  ShieldCheck,
+  Tag,
+  User,
+  FileText,
+  Grid3x3,
+} from "lucide-react";
+import { apiFetch } from "../../utils/apiConfig";
+import { SmartForm } from "../../components/form/SmartForm";
+import type { FormSectionConfig } from "../../components/form/SmartForm";
+import { FormPageHeader } from "../../components/form/FormPageHeader";
+
+interface TaskFormData {
+  _id?: string;
+  taskTitle: string;
+  description: string;
+  taskType: string;
+  assignedMitra: string;
+  vidhanSabha: string;
+  zone: string;
+  sector: string;
+  dueDate: string;
+  priority: string;
+  status: string;
+}
+
+const emptyForm: TaskFormData = {
+  taskTitle: "",
+  description: "",
+  taskType: "Survey",
+  assignedMitra: "",
+  vidhanSabha: "",
+  zone: "",
+  sector: "",
+  dueDate: "",
+  priority: "Medium",
+  status: "Pending",
+};
 
 export const TaskForm = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
   const editTask = location.state?.task;
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
-  const [formData, setFormData] = useState(
-    editTask || {
-      id: "",
-      taskTitle: "",
-      taskType: "",
-      assignedMitra: "",
-      vidhanSabha: "",
-      zone: "",
-      sector: "",
-      dueDate: "",
-      priority: "Medium",
-      status: "Pending",
-    }
+  const [formData, setFormData] = useState<TaskFormData>(
+    editTask
+      ? {
+          ...emptyForm,
+          ...editTask,
+          dueDate: editTask.dueDate ? String(editTask.dueDate).slice(0, 10) : "",
+        }
+      : emptyForm
   );
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+  const handleFieldChange = (name: string, value: any) => {
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError("");
+    setSubmitting(true);
 
-    // API call or state update here
+    const { _id, createdAt: _createdAt, updatedAt: _updatedAt, ...payload } = formData as any;
 
-    navigate("/tasks");
+    try {
+      if (editTask?._id) {
+        await apiFetch(`/api/v1/tasks/${editTask._id}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await apiFetch("/api/v1/tasks", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+      }
+      navigate("/tasks");
+    } catch (err: any) {
+      setError(err.message || "Failed to save task");
+    } finally {
+      setSubmitting(false);
+    }
   };
+
+  const sections: FormSectionConfig[] = [
+    {
+      title: "Task Details",
+      description: "What needs to be done and what kind of task it is.",
+      icon: ClipboardList,
+      fields: [
+        { name: "taskTitle", label: "Task Title", type: "text", icon: Tag, required: true, span: 2 },
+        { name: "description", label: "Description", type: "textarea", icon: FileText, span: 2 },
+        {
+          name: "taskType",
+          label: "Task Type",
+          type: "select",
+          icon: Layers,
+          required: true,
+          options: [
+            { label: "Survey", value: "Survey" },
+            { label: "Plantation", value: "Plantation" },
+            { label: "Inspection", value: "Inspection" },
+          ],
+        },
+      ],
+    },
+    {
+      title: "Assignment",
+      description: "Who is responsible and where this task applies.",
+      icon: MapPin,
+      fields: [
+        { name: "assignedMitra", label: "Assigned Mitra", type: "text", icon: User },
+        { name: "vidhanSabha", label: "Vidhan Sabha", type: "text", icon: Landmark },
+        { name: "zone", label: "Zone", type: "text", icon: MapPin },
+        { name: "sector", label: "Sector", type: "text", icon: Grid3x3 },
+      ],
+    },
+    {
+      title: "Scheduling & Priority",
+      icon: Flag,
+      fields: [
+        { name: "dueDate", label: "Due Date", type: "date", icon: Calendar, required: true },
+        {
+          name: "priority",
+          label: "Priority",
+          type: "select",
+          icon: Flag,
+          options: [
+            { label: "High", value: "High" },
+            { label: "Medium", value: "Medium" },
+            { label: "Low", value: "Low" },
+          ],
+        },
+        {
+          name: "status",
+          label: "Status",
+          type: "select",
+          icon: ShieldCheck,
+          options: [
+            { label: "Pending", value: "Pending" },
+            { label: "In Progress", value: "In Progress" },
+            { label: "Completed", value: "Completed" },
+          ],
+        },
+      ],
+    },
+  ];
 
   return (
     <div className="dashboard-area">
-      <div className="page-header">
-        <h1>{editTask ? "Edit Task" : "Add Task"}</h1>
-      </div>
+      <FormPageHeader
+        icon={ClipboardList}
+        title={editTask ? "Edit Task" : "Add Task"}
+        subtitle="Create or update a task and assign it to a Mitra, zone or sector."
+        onBack={() => navigate("/tasks")}
+      />
 
       <div className="card">
-        <form className="modal-form" onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label>Task ID</label>
-            <input
-              name="id"
-              value={formData.id}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Task Title</label>
-            <input
-              name="taskTitle"
-              value={formData.taskTitle}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Task Type</label>
-            <select
-              name="taskType"
-              value={formData.taskType}
-              onChange={handleChange}
-            >
-              <option>Survey</option>
-              <option>Plantation</option>
-              <option>Inspection</option>
-            </select>
-          </div>
-
-          <div className="form-group">
-            <label>Assigned Mitra</label>
-            <input
-              name="assignedMitra"
-              value={formData.assignedMitra}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Vidhan Sabha</label>
-            <input
-              name="vidhanSabha"
-              value={formData.vidhanSabha}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Zone</label>
-            <input
-              name="zone"
-              value={formData.zone}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Sector</label>
-            <input
-              name="sector"
-              value={formData.sector}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Due Date</label>
-            <input
-              type="date"
-              name="dueDate"
-              value={formData.dueDate}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Priority</label>
-            <select
-              name="priority"
-              value={formData.priority}
-              onChange={handleChange}
-            >
-              <option>High</option>
-              <option>Medium</option>
-              <option>Low</option>
-            </select>
-          </div>
-
-          <div className="form-group">
-            <label>Status</label>
-            <select
-              name="status"
-              value={formData.status}
-              onChange={handleChange}
-            >
-              <option>Pending</option>
-              <option>In Progress</option>
-              <option>Completed</option>
-            </select>
-          </div>
-
-          <div className="modal-actions">
-            <button
-              type="button"
-              className="btn-danger"
-              onClick={() => navigate("/tasks")}
-            >
-              Cancel
-            </button>
-
-            <button className="btn-primary" type="submit">
-              Save Task
-            </button>
-          </div>
-        </form>
+        <SmartForm
+          sections={sections}
+          formData={formData}
+          onFieldChange={handleFieldChange}
+          onSubmit={handleSubmit}
+          submitting={submitting}
+          error={error}
+          submitLabel={editTask ? "Update Task" : "Save Task"}
+          cancelLabel="Cancel"
+          onCancel={() => navigate("/tasks")}
+        />
       </div>
     </div>
   );
 };
+
+export default TaskForm;

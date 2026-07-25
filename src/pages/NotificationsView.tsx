@@ -1,86 +1,105 @@
-import React, { useState } from "react";
-import { Plus, Filter, Edit, Trash2, Eye } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { Plus, Filter, Edit, Trash2, Loader2, Send, Bell } from "lucide-react";
+import type { ColumnDef } from "@tanstack/react-table";
 import DataTable from "../components/DataTable";
 import NotificationModal from "./modals/NotificationModal";
+import type { NotificationFormData } from "./modals/NotificationModal";
 import DeleteConfirmModal from "./modals/DeleteConfirmModal";
+import { apiFetch } from "../utils/apiConfig";
 
 interface Notification {
-  id: string;
+  _id: string;
   notificationTitle: string;
+  message: string;
+  notificationType: string;
   targetAudience: string;
   locationFilter: string;
-  sentBy: string;
-  sentDate: string;
-  deliveryCount: number;
   status: string;
+  scheduledAt?: string | null;
+  sentAt?: string | null;
+  sentBy?: string;
+  deliveryCount: number;
+  failureReason?: string | null;
 }
 
-export const NotificationsView = () => {
-  const initialForm = {
-    id: "",
-    notificationTitle: "",
-    targetAudience: "All Users",
-    locationFilter: "",
-    sentBy: "",
-    sentDate: "",
-    deliveryCount: 0,
-    status: "Sent",
-  };
+const initialForm: NotificationFormData = {
+  notificationTitle: "",
+  message: "",
+  notificationType: "push",
+  targetAudience: "All Users",
+  locationFilter: "All Locations",
+  status: "Draft",
+  scheduledAt: "",
+  sentBy: "",
+  deliveryCount: 0,
+};
 
-  const [notificationList, setNotificationList] = useState<Notification[]>(
-    Array.from({ length: 100 }, (_, i) => ({
-      id: `NOT-${String(i + 1).padStart(3, "0")}`,
-      notificationTitle: `Notification ${i + 1}`,
-      targetAudience: i % 2 === 0 ? "All Users" : "Customers",
-      locationFilter: i % 2 === 0 ? "All Locations" : "Delhi",
-      sentBy: `Admin ${i % 5 + 1}`,
-      sentDate: "2026-02-20",
-      deliveryCount: (i + 1) * 250,
-      status: i % 2 === 0 ? "Sent" : "Draft",
-    }))
-  );
+export const NotificationsView = () => {
+  const [notificationList, setNotificationList] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [sendingId, setSendingId] = useState<string | null>(null);
 
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [formData, setFormData] = useState(initialForm);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [notificationToDelete, setNotificationToDelete] =
-    useState<Notification | null>(null);
+  const [formData, setFormData] = useState<NotificationFormData>(initialForm);
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [notificationToDelete, setNotificationToDelete] = useState<Notification | null>(null);
+
+  const loadNotifications = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await apiFetch<Notification[]>("/api/v1/notifications");
+      setNotificationList(data || []);
+    } catch (err: any) {
+      setError(err.message || "Failed to load notifications");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSubmit = (
-    e: React.FormEvent<HTMLFormElement>
-  ) => {
-    e.preventDefault();
+  useEffect(() => {
+    loadNotifications();
+  }, []);
 
-    if (editing) {
-      setNotificationList((prev) =>
-        prev.map((item) =>
-          item.id === formData.id
-            ? { ...item, ...formData }
-            : item
-        )
-      );
-    } else {
-      setNotificationList((prev) => [
-        {
-          ...formData,
-          id: `NOT-${Date.now()}`,
-          deliveryCount: Number(formData.deliveryCount),
-        },
-        ...prev,
-      ]);
+  const handleFieldChange = (name: string, value: any) => {
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setError("");
+
+    const { _id, ...rest } = formData;
+    const payload: Record<string, any> = { ...rest };
+    if (!payload.scheduledAt) delete payload.scheduledAt;
+    if (payload.deliveryCount === "" || payload.deliveryCount === undefined) {
+      delete payload.deliveryCount;
     }
 
-    setShowModal(false);
+    try {
+      if (editing && _id) {
+        await apiFetch(`/api/v1/notifications/${_id}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await apiFetch("/api/v1/notifications", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+      }
+      setShowModal(false);
+      await loadNotifications();
+    } catch (err: any) {
+      setError(err.message || "Failed to save notification");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const openAddModal = () => {
@@ -89,66 +108,68 @@ export const NotificationsView = () => {
     setShowModal(true);
   };
 
-  const openEditModal = (
-    notification: Notification
-  ) => {
+  const openEditModal = (notification: Notification) => {
     setEditing(true);
-    setFormData(notification);
+    setFormData({
+      _id: notification._id,
+      notificationTitle: notification.notificationTitle,
+      message: notification.message,
+      notificationType: notification.notificationType,
+      targetAudience: notification.targetAudience,
+      locationFilter: notification.locationFilter,
+      status: notification.status,
+      scheduledAt: notification.scheduledAt ? String(notification.scheduledAt).slice(0, 10) : "",
+      sentBy: notification.sentBy || "",
+      deliveryCount: notification.deliveryCount ?? 0,
+    });
     setShowModal(true);
   };
 
-  const openDeleteModal = (
-    notification: Notification
-  ) => {
+  const openDeleteModal = (notification: Notification) => {
     setNotificationToDelete(notification);
     setShowDeleteModal(true);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!notificationToDelete) return;
+    try {
+      await apiFetch(`/api/v1/notifications/${notificationToDelete._id}`, { method: "DELETE" });
+      await loadNotifications();
+    } catch (err: any) {
+      setError(err.message || "Failed to delete notification");
+    } finally {
+      setNotificationToDelete(null);
+      setShowDeleteModal(false);
+    }
+  };
 
-    setNotificationList((prev) =>
-      prev.filter(
-        (item) =>
-          item.id !== notificationToDelete.id
-      )
-    );
-
-    setShowDeleteModal(false);
-    setNotificationToDelete(null);
+  const handleSendNow = async (notification: Notification) => {
+    setSendingId(notification._id);
+    setError("");
+    try {
+      await apiFetch(`/api/v1/notifications/${notification._id}/send`, { method: "PATCH" });
+      await loadNotifications();
+    } catch (err: any) {
+      setError(err.message || "Failed to send notification");
+    } finally {
+      setSendingId(null);
+    }
   };
 
   const columns: ColumnDef<Notification>[] = [
+    { accessorKey: "notificationTitle", header: "Notification Title", enableSorting: true },
+    { accessorKey: "notificationType", header: "Type", enableSorting: true },
+    { accessorKey: "targetAudience", header: "Target Audience", enableSorting: true },
+    { accessorKey: "locationFilter", header: "Location Filter", enableSorting: true },
+    { accessorKey: "sentBy", header: "Sent By", enableSorting: true },
     {
-      accessorKey: "notificationTitle",
-      header: "Notification Title",
-      enableSorting: true,
-    },
-    {
-      accessorKey: "targetAudience",
-      header: "Target Audience",
-      enableSorting: true,
-    },
-    {
-      accessorKey: "locationFilter",
-      header: "Location Filter",
-      enableSorting: true,
-    },
-    {
-      accessorKey: "sentBy",
-      header: "Sent By",
-      enableSorting: true,
-    },
-    {
-      accessorKey: "sentDate",
+      accessorKey: "sentAt",
       header: "Sent Date",
       enableSorting: true,
+      cell: ({ row }) =>
+        row.original.sentAt ? new Date(row.original.sentAt).toLocaleDateString() : "-",
     },
-    {
-      accessorKey: "deliveryCount",
-      header: "Delivery Count",
-      enableSorting: true,
-    },
+    { accessorKey: "deliveryCount", header: "Delivery Count", enableSorting: true },
     {
       accessorKey: "status",
       header: "Status",
@@ -157,8 +178,11 @@ export const NotificationsView = () => {
           className={`status-badge ${
             row.original.status === "Sent"
               ? "status-active"
-              : "status-inactive"
+              : row.original.status === "Failed"
+              ? "status-inactive"
+              : "status-warning"
           }`}
+          title={row.original.status === "Failed" ? row.original.failureReason || undefined : undefined}
         >
           {row.original.status}
         </span>
@@ -166,27 +190,24 @@ export const NotificationsView = () => {
     },
     {
       header: "Actions",
+      enableSorting: false,
       cell: ({ row }) => (
         <div style={{ display: "flex", gap: "8px" }}>
-          <button className="icon-btn">
-            <Eye size={14} />
-          </button>
-
-          <button
-            className="icon-btn"
-            onClick={() =>
-              openEditModal(row.original)
-            }
-          >
+          {(row.original.status === "Draft" || row.original.status === "Scheduled") && (
+            <button
+              className="icon-btn"
+              title="Send Now"
+              style={{ width: 28, height: 28 }}
+              onClick={() => handleSendNow(row.original)}
+              disabled={sendingId === row.original._id}
+            >
+              {sendingId === row.original._id ? <Loader2 size={14} className="spin" /> : <Send size={14} />}
+            </button>
+          )}
+          <button className="icon-btn" style={{ width: 28, height: 28 }} onClick={() => openEditModal(row.original)}>
             <Edit size={14} />
           </button>
-
-          <button
-            className="icon-btn"
-            onClick={() =>
-              openDeleteModal(row.original)
-            }
-          >
+          <button className="icon-btn" style={{ width: 28, height: 28 }} onClick={() => openDeleteModal(row.original)}>
             <Trash2 size={14} />
           </button>
         </div>
@@ -200,32 +221,72 @@ export const NotificationsView = () => {
         <div className="page-header">
           <div className="page-title">
             <h1>Notifications</h1>
-            <p>
-              Manage system notifications and delivery records.
-            </p>
+            <p>Compose, schedule and send notifications to your audience.</p>
           </div>
 
           <div style={{ display: "flex", gap: "12px" }}>
-            <button className="icon-btn">
+            <button className="icon-btn" title="Filter">
               <Filter size={18} />
             </button>
-
-            <button
-              className="btn-primary"
-              onClick={openAddModal}
-            >
+            <button className="btn-primary" onClick={openAddModal}>
               <Plus size={18} />
               Add Notification
             </button>
           </div>
         </div>
 
+        {error && (
+          <div
+            style={{
+              background: "rgba(255, 61, 0, 0.1)",
+              color: "#ff3d00",
+              padding: "12px",
+              borderRadius: "8px",
+              marginBottom: "16px",
+            }}
+          >
+            {error}
+          </div>
+        )}
+
         <div className="card">
-          <DataTable
-            data={notificationList}
-            columns={columns}
-            searchPlaceholder="Search notification title..."
-          />
+          {loading ? (
+            <div style={{ display: "flex", justifyContent: "center", padding: "40px" }}>
+              <Loader2 size={24} className="spin" />
+            </div>
+          ) : notificationList.length === 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "60px 20px", textAlign: "center" }}>
+              <div
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: "rgba(43, 150, 79, 0.08)",
+                  color: "var(--accent-color)",
+                  marginBottom: 16,
+                }}
+              >
+                <Bell size={26} />
+              </div>
+              <h3 style={{ margin: 0, marginBottom: 6 }}>No notifications yet</h3>
+              <p style={{ color: "var(--text-secondary)", marginBottom: 20 }}>
+                Compose your first notification to reach your audience.
+              </p>
+              <button className="btn-primary" onClick={openAddModal}>
+                <Plus size={18} />
+                Add First Notification
+              </button>
+            </div>
+          ) : (
+            <DataTable
+              data={notificationList}
+              columns={columns}
+              searchPlaceholder="Search by notification title..."
+            />
+          )}
         </div>
       </div>
 
@@ -234,7 +295,8 @@ export const NotificationsView = () => {
         onClose={() => setShowModal(false)}
         editing={editing}
         formData={formData}
-        handleChange={handleChange}
+        submitting={submitting}
+        onFieldChange={handleFieldChange}
         handleSubmit={handleSubmit}
       />
 
@@ -245,10 +307,11 @@ export const NotificationsView = () => {
           setNotificationToDelete(null);
         }}
         onConfirm={handleDelete}
-        personName={
-          notificationToDelete?.notificationTitle
-        }
+        personName={notificationToDelete?.notificationTitle}
+        title="Delete Notification"
       />
     </>
   );
 };
+
+export default NotificationsView;
