@@ -1,93 +1,124 @@
-import React, { useState } from "react";
-import { Plus, Filter, Edit, Trash2, Eye } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { IdCard, Plus, Filter, Edit, Trash2, Loader2, ToggleLeft, ToggleRight } from "lucide-react";
+import type { ColumnDef } from "@tanstack/react-table";
 import DataTable from "../components/DataTable";
 import IdentityModal from "./modals/IdentityModal";
+import type { IdentityFormData } from "./modals/IdentityModal";
 import DeleteConfirmModal from "./modals/DeleteConfirmModal";
+import { apiFetch } from "../utils/apiConfig";
+import type { SelectOption } from "../components/form/SmartForm";
 
 interface PersonIdentity {
-  id: string;
-  personName: string;
+  _id: string;
   identityId: string;
-  photo: string;
-  qrCode: string;
+  person?: string;
+  personName: string;
+  personMobile?: string;
+  photo?: string;
+  qrCode?: string;
   vehicleStickerStatus: string;
-  generatedDate: string;
+  generatedDate?: string;
   status: string;
 }
 
-export const IdentityView = () => {
-  const initialForm = {
-    id: "",
-    personName: "",
-    identityId: "",
-    photo: "",
-    qrCode: "",
-    vehicleStickerStatus: "Not Generated",
-    generatedDate: "",
-    status: "Active",
-  };
+interface PersonOption {
+  _id: string;
+  name: string;
+  mobile: string;
+}
 
-  const [identities, setIdentities] = useState<PersonIdentity[]>(
-    Array.from({ length: 100 }, (_, i) => ({
-      id: `PI-${String(i + 1).padStart(3, "0")}`,
-      personName: `Citizen ${i + 1}`,
-      identityId: `ID-${10000 + i}`,
-      photo: "profile.jpg",
-      qrCode: `QR-${10000 + i}`,
-      vehicleStickerStatus: i % 2 === 0 ? "Generated" : "Pending",
-      generatedDate: "2026-01-15",
-      status: "Active",
-    }))
-  );
+const initialForm: IdentityFormData = {
+  person: "",
+  personName: "",
+  personMobile: "",
+  photo: "",
+  qrCode: "",
+  vehicleStickerStatus: "Pending",
+  generatedDate: "",
+  status: "Active",
+};
+
+const toDateInputValue = (value?: string) => (value ? value.slice(0, 10) : "");
+
+export const IdentityView = () => {
+  const [identities, setIdentities] = useState<PersonIdentity[]>([]);
+  const [personOptions, setPersonOptions] = useState<SelectOption[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [formData, setFormData] = useState(initialForm);
+  const [formData, setFormData] = useState<IdentityFormData>(initialForm);
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [identityToDelete, setIdentityToDelete] =
-    useState<PersonIdentity | null>(null);
+  const [identityToDelete, setIdentityToDelete] = useState<PersonIdentity | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+  const loadIdentities = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await apiFetch<PersonIdentity[]>("/api/v1/person-identity");
+      setIdentities(data || []);
+    } catch (err: any) {
+      setError(err.message || "Failed to load Person Identities");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-
-    if (editing) {
-      setIdentities((prev) =>
-        prev.map((item) =>
-          item.id === formData.id
-            ? {
-                ...item,
-                ...formData,
-              }
-            : item
-        )
+  const loadPersonOptions = async () => {
+    try {
+      const data = await apiFetch<PersonOption[]>("/api/v1/persons?limit=500");
+      setPersonOptions(
+        (data || []).map((p) => ({ label: `${p.name} (${p.mobile})`, value: p._id }))
       );
-    } else {
-      setIdentities((prev) => [
-        {
-          id: formData.id,
-          personName: formData.personName,
-          identityId: formData.identityId,
-          photo: formData.photo,
-          qrCode: formData.qrCode,
-          vehicleStickerStatus: formData.vehicleStickerStatus,
-          generatedDate: formData.generatedDate,
-          status: formData.status,
-        },
-        ...prev,
-      ]);
+    } catch {
+      // Non-critical: the identity list still works without the person picker.
     }
+  };
 
-    setShowModal(false);
+  useEffect(() => {
+    loadIdentities();
+    loadPersonOptions();
+  }, []);
+
+  const handleFieldChange = (name: string, value: any) => {
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setError("");
+
+    const { _id, identityId: _identityId, ...rest } = formData;
+    const payload: Record<string, any> = {};
+    Object.entries(rest).forEach(([key, value]) => {
+      if (value === "" || value === undefined || value === null) return;
+      payload[key] = value;
+    });
+
+    try {
+      if (editing && _id) {
+        await apiFetch(`/api/v1/person-identity/${_id}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await apiFetch("/api/v1/person-identity", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+      }
+      setShowModal(false);
+      await loadIdentities();
+    } catch (err: any) {
+      setError(err.message || "Failed to save Identity");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const openAddModal = () => {
@@ -98,7 +129,18 @@ export const IdentityView = () => {
 
   const openEditModal = (identity: PersonIdentity) => {
     setEditing(true);
-    setFormData(identity);
+    setFormData({
+      _id: identity._id,
+      identityId: identity.identityId,
+      person: identity.person || "",
+      personName: identity.personName,
+      personMobile: identity.personMobile || "",
+      photo: identity.photo || "",
+      qrCode: identity.qrCode || "",
+      vehicleStickerStatus: identity.vehicleStickerStatus,
+      generatedDate: toDateInputValue(identity.generatedDate),
+      status: identity.status,
+    });
     setShowModal(true);
   };
 
@@ -107,112 +149,97 @@ export const IdentityView = () => {
     setShowDeleteModal(true);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!identityToDelete) return;
+    try {
+      await apiFetch(`/api/v1/person-identity/${identityToDelete._id}`, { method: "DELETE" });
+      await loadIdentities();
+    } catch (err: any) {
+      setError(err.message || "Failed to delete Identity");
+    } finally {
+      setIdentityToDelete(null);
+      setShowDeleteModal(false);
+    }
+  };
 
-    setIdentities((prev) =>
-      prev.filter((item) => item.id !== identityToDelete.id)
-    );
-
-    setShowDeleteModal(false);
-    setIdentityToDelete(null);
+  const toggleVehicleSticker = async (identity: PersonIdentity) => {
+    setTogglingId(identity._id);
+    try {
+      const next = identity.vehicleStickerStatus === "Generated" ? "Pending" : "Generated";
+      await apiFetch(`/api/v1/person-identity/${identity._id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ vehicleStickerStatus: next }),
+      });
+      await loadIdentities();
+    } catch (err: any) {
+      setError(err.message || "Failed to update vehicle sticker status");
+    } finally {
+      setTogglingId(null);
+    }
   };
 
   const columns: ColumnDef<PersonIdentity>[] = [
-    {
-      accessorKey: "personName",
-      header: "Person Name",
-      enableSorting: true,
-    },
-    {
-      accessorKey: "identityId",
-      header: "Identity ID",
-      enableSorting: true,
-    },
-    {
-      accessorKey: "photo",
-      header: "Photo",
-      cell: () => (
-        <img
-          src="/profile.png"
-          width="35"
-          height="35"
-          style={{ borderRadius: "50%" }}
-        />
-      ),
-    },
+    { accessorKey: "identityId", header: "Identity ID", enableSorting: true },
+    { accessorKey: "personName", header: "Person Name", enableSorting: true },
+    { accessorKey: "personMobile", header: "Mobile", enableSorting: true },
     {
       accessorKey: "qrCode",
       header: "QR Code",
-      cell: ({ row }) => (
-        <div style={{ fontSize: "12px" }}>
-          {row.original.qrCode}
-        </div>
-      ),
+      cell: ({ row }) => <div style={{ fontSize: "12px" }}>{row.original.qrCode || "-"}</div>,
+      enableSorting: true,
     },
     {
       accessorKey: "vehicleStickerStatus",
       header: "Vehicle Sticker Status",
+      enableSorting: false,
       cell: ({ row }) => (
-        <span
-          className={`status-badge ${
-            row.original.vehicleStickerStatus === "Generated"
-              ? "status-active"
-              : "status-inactive"
-          }`}
+        <button
+          className={`status-badge ${row.original.vehicleStickerStatus === "Generated" ? "status-active" : "status-warning"}`}
+          style={{ border: "none", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}
+          onClick={() => toggleVehicleSticker(row.original)}
+          disabled={togglingId === row.original._id}
+          title="Click to toggle"
         >
+          {togglingId === row.original._id ? (
+            <Loader2 size={12} className="spin" />
+          ) : row.original.vehicleStickerStatus === "Generated" ? (
+            <ToggleRight size={14} />
+          ) : (
+            <ToggleLeft size={14} />
+          )}
           {row.original.vehicleStickerStatus}
-        </span>
+        </button>
       ),
     },
     {
       accessorKey: "generatedDate",
       header: "Generated Date",
       enableSorting: true,
+      cell: ({ row }) => <span>{toDateInputValue(row.original.generatedDate) || "-"}</span>,
     },
     {
       accessorKey: "status",
       header: "Status",
       cell: ({ row }) => (
-        <span
-          className={`status-badge ${
-            row.original.status === "Active"
-              ? "status-active"
-              : "status-inactive"
-          }`}
-        >
+        <span className={`status-badge ${row.original.status === "Active" ? "status-active" : "status-inactive"}`}>
           {row.original.status}
         </span>
       ),
+      enableSorting: false,
     },
     {
       header: "Actions",
       cell: ({ row }) => (
         <div style={{ display: "flex", gap: "8px" }}>
-          <button
-            className="icon-btn"
-            style={{ width: 28, height: 28 }}
-          >
-            <Eye size={14} />
-          </button>
-
-          <button
-            className="icon-btn"
-            style={{ width: 28, height: 28 }}
-            onClick={() => openEditModal(row.original)}
-          >
+          <button className="icon-btn" style={{ width: 28, height: 28 }} onClick={() => openEditModal(row.original)}>
             <Edit size={14} />
           </button>
-
-          <button
-            className="icon-btn"
-            style={{ width: 28, height: 28 }}
-            onClick={() => openDeleteModal(row.original)}
-          >
+          <button className="icon-btn" style={{ width: 28, height: 28 }} onClick={() => openDeleteModal(row.original)}>
             <Trash2 size={14} />
           </button>
         </div>
       ),
+      enableSorting: false,
     },
   ];
 
@@ -222,32 +249,52 @@ export const IdentityView = () => {
         <div className="page-header">
           <div className="page-title">
             <h1>Person Identity Management</h1>
-            <p>
-              Manage citizen identity cards, QR codes and vehicle sticker status.
-            </p>
+            <p>Manage citizen identity cards, QR codes and vehicle sticker status.</p>
           </div>
 
           <div style={{ display: "flex", gap: "12px" }}>
-            <button className="icon-btn">
+            <button className="icon-btn" title="Filter">
               <Filter size={18} />
             </button>
-
-            <button
-              className="btn-primary"
-              onClick={openAddModal}
-            >
+            <button className="btn-primary" onClick={openAddModal}>
               <Plus size={18} />
               Add Identity
             </button>
           </div>
         </div>
 
+        {error && (
+          <div style={{ background: "rgba(255, 61, 0, 0.1)", color: "#ff3d00", padding: "12px", borderRadius: "8px", marginBottom: "16px" }}>
+            {error}
+          </div>
+        )}
+
         <div className="card">
-          <DataTable
-            data={identities}
-            columns={columns}
-            searchPlaceholder="Search person name, identity ID..."
-          />
+          {loading ? (
+            <div style={{ display: "flex", justifyContent: "center", padding: "40px" }}>
+              <Loader2 size={24} className="spin" />
+            </div>
+          ) : identities.length === 0 ? (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 10,
+                padding: "48px 20px",
+                color: "var(--text-secondary)",
+              }}
+            >
+              <IdCard size={28} />
+              <p>No identity records created yet.</p>
+              <button className="btn-primary" onClick={openAddModal}>
+                <Plus size={16} />
+                Add the first one
+              </button>
+            </div>
+          ) : (
+            <DataTable data={identities} columns={columns} searchPlaceholder="Search person name, identity ID..." />
+          )}
         </div>
       </div>
 
@@ -256,7 +303,9 @@ export const IdentityView = () => {
         onClose={() => setShowModal(false)}
         editing={editing}
         formData={formData}
-        handleChange={handleChange}
+        submitting={submitting}
+        personOptions={personOptions}
+        onFieldChange={handleFieldChange}
         handleSubmit={handleSubmit}
       />
 
@@ -268,7 +317,10 @@ export const IdentityView = () => {
         }}
         onConfirm={handleDelete}
         personName={identityToDelete?.personName}
+        title="Delete Identity"
       />
     </>
   );
 };
+
+export default IdentityView;

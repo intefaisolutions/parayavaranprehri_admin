@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Filter, Edit, Trash2, Loader2 } from 'lucide-react';
+import { Plus, Filter, Edit, Trash2, Loader2, UserPlus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
 import DataTable from "../components/DataTable";
 import DeleteConfirmModal from "./modals/DeleteConfirmModal";
+import AssignMitraModal from "./modals/AssignMitraModal";
 import { apiFetch } from "../utils/apiConfig";
 import { type TreesFormData } from "./forms/TreeForm";
 
 interface Tree extends TreesFormData {
   _id: string;
   treeId: string;
+  assignedMitraId?: string;
+  assignedMitraName?: string;
 }
 
 export const TreesView = () => {
@@ -21,6 +24,9 @@ export const TreesView = () => {
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [treeToDelete, setTreeToDelete] = useState<Tree | null>(null);
+
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [treeToAssign, setTreeToAssign] = useState<Tree | null>(null);
 
   const loadTrees = async () => {
     setLoading(true);
@@ -52,6 +58,20 @@ export const TreesView = () => {
     setShowDeleteModal(true);
   };
 
+  const openAssignModal = (tree: Tree) => {
+    setTreeToAssign(tree);
+    setShowAssignModal(true);
+  };
+
+  const handleAssignMitra = async (mitraId: string) => {
+    if (!treeToAssign) return;
+    await apiFetch(`/api/v1/trees/${treeToAssign._id}/assign-mitra`, {
+      method: "PATCH",
+      body: JSON.stringify({ mitraId }),
+    });
+    await loadTrees();
+  };
+
   const handleDelete = async () => {
     if (!treeToDelete) return;
     try {
@@ -71,6 +91,12 @@ export const TreesView = () => {
     { accessorKey: "species", header: "Species", enableSorting: true },
     { accessorKey: "userName", header: "Owner", enableSorting: true },
     { accessorKey: "vehicleNumber", header: "Assigned Vehicle", enableSorting: true },
+    {
+      accessorKey: "assignedMitraName",
+      header: "Caretaker Mitra",
+      cell: ({ row }) => row.original.assignedMitraName || <span style={{ color: "var(--text-secondary)" }}>Unassigned</span>,
+      enableSorting: false,
+    },
     {
       accessorKey: "location",
       header: "Location",
@@ -96,6 +122,9 @@ export const TreesView = () => {
       header: "Actions",
       cell: ({ row }) => (
         <div style={{ display: 'flex', gap: '8px' }}>
+          <button className="icon-btn" title="Assign Mitra" style={{ width: 28, height: 28 }} onClick={() => openAssignModal(row.original)}>
+            <UserPlus size={14} />
+          </button>
           <button className="icon-btn" style={{ width: 28, height: 28 }} onClick={() => openEditPage(row.original)}>
             <Edit size={14} />
           </button>
@@ -153,6 +182,17 @@ export const TreesView = () => {
         onConfirm={handleDelete}
         personName={treeToDelete?.treeName}
         title="Delete Tree"
+      />
+
+      <AssignMitraModal
+        isOpen={showAssignModal}
+        onClose={() => {
+          setShowAssignModal(false);
+          setTreeToAssign(null);
+        }}
+        treeName={treeToAssign?.treeName}
+        currentMitraId={treeToAssign?.assignedMitraId}
+        onAssign={handleAssignMitra}
       />
     </>
   );

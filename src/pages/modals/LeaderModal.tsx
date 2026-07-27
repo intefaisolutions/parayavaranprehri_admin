@@ -1,142 +1,103 @@
 import React from "react";
-import { X } from "lucide-react";
+import { X, User, Award, Building2, Image as ImageIcon, ListOrdered, ToggleLeft } from "lucide-react";
+import { SmartForm } from "../../components/form/SmartForm";
+import type { FormSectionConfig } from "../../components/form/SmartForm";
 
-interface Props {
+export interface LeaderFormData {
+  _id?: string;
+  leaderName: string;
+  designation: string;
+  organization: string;
+  photo: string;
+  displayOrder: number | "";
+  isActive: boolean;
+}
+
+interface LeaderModalProps {
   isOpen: boolean;
   onClose: () => void;
   editing: boolean;
-  formData: any;
-  handleChange: (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => void;
-  handleSubmit: (
-    e: React.FormEvent<HTMLFormElement>
-  ) => void;
+  formData: LeaderFormData;
+  submitting?: boolean;
+  onFieldChange: (name: string, value: any) => void;
+  handleSubmit: (e: React.FormEvent) => void;
 }
 
-const InitiativeLeaderModal: React.FC<Props> = ({
+const LeaderModal: React.FC<LeaderModalProps> = ({
   isOpen,
   onClose,
   editing,
   formData,
-  handleChange,
+  submitting,
+  onFieldChange,
   handleSubmit,
 }) => {
   if (!isOpen) return null;
 
+  const sections: FormSectionConfig[] = [
+    {
+      title: "Leader Details",
+      description: "Core identity and role of this initiative leader.",
+      icon: User,
+      fields: [
+        { name: "leaderName", label: "Leader Name", type: "text", icon: User, required: true, span: 2 },
+        { name: "designation", label: "Designation", type: "text", icon: Award, required: true },
+        { name: "organization", label: "Organization", type: "text", icon: Building2 },
+      ],
+    },
+    {
+      title: "Photo",
+      icon: ImageIcon,
+      fields: [
+        { name: "photo", label: "Photo", type: "image", icon: ImageIcon, uploadCategory: "general", span: 2 },
+      ],
+    },
+    {
+      title: "Display Settings",
+      icon: ListOrdered,
+      fields: [
+        {
+          name: "displayOrder",
+          label: "Display Order",
+          type: "number",
+          icon: ListOrdered,
+          placeholder: "0",
+          helpText: "Lower numbers are shown first in lists.",
+        },
+        {
+          name: "isActive",
+          label: "Visible",
+          type: "boolean",
+          icon: ToggleLeft,
+          helpText: "Only visible leaders are shown to end users.",
+        },
+      ],
+    },
+  ];
+
   return (
     <div className="modal-overlay">
-      <div className="modal">
+      <div className="modal" style={{ width: 640 }}>
         <div className="modal-header">
-          <h2>
-            {editing
-              ? "Edit Initiative Leader"
-              : "Add Initiative Leader"}
-          </h2>
-
-          <button
-            className="icon-btn"
-            onClick={onClose}
-          >
+          <h2>{editing ? "Edit Initiative Leader" : "Add Initiative Leader"}</h2>
+          <button className="icon-btn" onClick={onClose}>
             <X size={18} />
           </button>
         </div>
 
-        <form
-          className="modal-form"
+        <SmartForm
+          sections={sections}
+          formData={formData}
+          onFieldChange={onFieldChange}
           onSubmit={handleSubmit}
-        >
-          <div className="form-group">
-            <label>Leader Name</label>
-            <input
-              name="leaderName"
-              value={formData.leaderName}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Photo</label>
-            <input
-              type="file"
-              name="photo"
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Designation</label>
-            <input
-              name="designation"
-              value={formData.designation}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Organization</label>
-            <input
-              name="organization"
-              value={formData.organization}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Display Order</label>
-            <input
-              type="number"
-              name="displayOrder"
-              value={formData.displayOrder}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Visibility Status</label>
-
-            <select
-              name="visibilityStatus"
-              value={formData.visibilityStatus}
-              onChange={handleChange}
-            >
-              <option>Visible</option>
-              <option>Hidden</option>
-            </select>
-          </div>
-
-          <div className="form-group">
-            <label>Updated Date</label>
-
-            <input
-              type="date"
-              name="updatedDate"
-              value={formData.updatedDate}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="modal-actions">
-            <button
-              type="button"
-              className="btn-danger"
-              onClick={onClose}
-            >
-              Cancel
-            </button>
-
-            <button
-              type="submit"
-              className="btn-primary"
-            >
-              {editing
-                ? "Update Leader"
-                : "Add Leader"}
-            </button>
-          </div>
-        </form>
+          submitting={submitting}
+          submitLabel={editing ? "Update Leader" : "Add Leader"}
+          cancelLabel="Cancel"
+          onCancel={onClose}
+        />
       </div>
     </div>
   );
 };
 
-export default InitiativeLeaderModal;
+export default LeaderModal;

@@ -1,123 +1,123 @@
 import React from "react";
-import { X } from "lucide-react";
+import { X, User, Phone, QrCode, Calendar, ShieldCheck, Car, IdCard } from "lucide-react";
+import { SmartForm } from "../../components/form/SmartForm";
+import type { FormSectionConfig, SelectOption } from "../../components/form/SmartForm";
 
-interface Props {
+export interface IdentityFormData {
+  _id?: string;
+  identityId?: string;
+  person?: string;
+  personName: string;
+  personMobile?: string;
+  photo?: string;
+  qrCode?: string;
+  vehicleStickerStatus?: string;
+  generatedDate?: string;
+  status: string;
+}
+
+interface IdentityModalProps {
   isOpen: boolean;
   onClose: () => void;
   editing: boolean;
-  formData: any;
-  handleChange: (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => void;
-  handleSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
+  formData: IdentityFormData;
+  submitting?: boolean;
+  personOptions?: SelectOption[];
+  onFieldChange: (name: string, value: any) => void;
+  handleSubmit: (e: React.FormEvent) => void;
 }
 
-const IdentityModal: React.FC<Props> = ({
+const IdentityModal: React.FC<IdentityModalProps> = ({
   isOpen,
   onClose,
   editing,
   formData,
-  handleChange,
+  submitting,
+  personOptions = [],
+  onFieldChange,
   handleSubmit,
 }) => {
   if (!isOpen) return null;
 
+  const sections: FormSectionConfig[] = [
+    {
+      title: "Person Link",
+      description: "Link this identity card to a registered person (optional).",
+      icon: User,
+      fields: [
+        { name: "person", label: "Registered Person", type: "select", icon: User, options: personOptions, span: 2 },
+        { name: "personName", label: "Person Name", type: "text", icon: User, required: true },
+        { name: "personMobile", label: "Person Mobile", type: "tel", icon: Phone },
+        { name: "photo", label: "Photo", type: "image", icon: User, uploadCategory: "users", span: 2 },
+      ],
+    },
+    {
+      title: "Identity Card",
+      icon: IdCard,
+      fields: [
+        { name: "qrCode", label: "QR Code", type: "text", icon: QrCode },
+        {
+          name: "vehicleStickerStatus",
+          label: "Vehicle Sticker Status",
+          type: "select",
+          icon: Car,
+          options: [
+            { label: "Generated", value: "Generated" },
+            { label: "Pending", value: "Pending" },
+          ],
+        },
+        { name: "generatedDate", label: "Generated Date", type: "date", icon: Calendar },
+        {
+          name: "status",
+          label: "Status",
+          type: "select",
+          icon: ShieldCheck,
+          required: true,
+          options: [
+            { label: "Active", value: "Active" },
+            { label: "Inactive", value: "Inactive" },
+          ],
+        },
+      ],
+    },
+  ];
+
   return (
     <div className="modal-overlay">
-      <div className="modal">
+      <div className="modal" style={{ width: 640 }}>
         <div className="modal-header">
           <h2>{editing ? "Edit Identity" : "Add Identity"}</h2>
-
           <button className="icon-btn" onClick={onClose}>
             <X size={18} />
           </button>
         </div>
 
-        <form className="modal-form" onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label>Person Name</label>
-            <input
-              name="personName"
-              value={formData.personName}
-              onChange={handleChange}
-            />
+        {editing && formData.identityId && (
+          <div
+            style={{
+              marginBottom: 16,
+              fontSize: 13,
+              color: "var(--text-secondary)",
+              background: "rgba(43, 150, 79, 0.06)",
+              border: "1px solid var(--border-color)",
+              padding: "8px 12px",
+              borderRadius: 8,
+            }}
+          >
+            Identity ID: <strong style={{ color: "var(--text-primary)" }}>{formData.identityId}</strong>
           </div>
+        )}
 
-          <div className="form-group">
-            <label>Identity ID</label>
-            <input
-              name="identityId"
-              value={formData.identityId}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Photo</label>
-            <input
-              name="photo"
-              value={formData.photo}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>QR Code</label>
-            <input
-              name="qrCode"
-              value={formData.qrCode}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Vehicle Sticker Status</label>
-            <select
-              name="vehicleStickerStatus"
-              value={formData.vehicleStickerStatus}
-              onChange={handleChange}
-            >
-              <option>Generated</option>
-              <option>Pending</option>
-            </select>
-          </div>
-
-          <div className="form-group">
-            <label>Generated Date</label>
-            <input
-              type="date"
-              name="generatedDate"
-              value={formData.generatedDate}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Status</label>
-            <select
-              name="status"
-              value={formData.status}
-              onChange={handleChange}
-            >
-              <option>Active</option>
-              <option>Inactive</option>
-            </select>
-          </div>
-
-          <div className="modal-actions">
-            <button
-              type="button"
-              className="btn-danger"
-              onClick={onClose}
-            >
-              Cancel
-            </button>
-
-            <button type="submit" className="btn-primary">
-              {editing ? "Update Identity" : "Add Identity"}
-            </button>
-          </div>
-        </form>
+        <SmartForm
+          sections={sections}
+          formData={formData}
+          onFieldChange={onFieldChange}
+          onSubmit={handleSubmit}
+          submitting={submitting}
+          submitLabel={editing ? "Update Identity" : "Add Identity"}
+          cancelLabel="Cancel"
+          onCancel={onClose}
+        />
       </div>
     </div>
   );

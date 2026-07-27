@@ -1,13 +1,40 @@
 import React from "react";
-import { X } from "lucide-react";
+import {
+  X,
+  User,
+  Phone,
+  Mail,
+  Calendar,
+  MapPin,
+  Building2,
+  Hash,
+  CreditCard,
+  ShieldCheck,
+  Car,
+  TreePine,
+} from "lucide-react";
+import { SmartForm } from "../../components/form/SmartForm";
+import type { FormSectionConfig } from "../../components/form/SmartForm";
 
 export interface PersonFormData {
-  id: string;
+  _id?: string;
+  personId?: string;
   name: string;
-  phone: string;
-  vehicles: number | string;
-  trees: number | string;
+  mobile: string;
+  email?: string;
+  dob?: string;
+  gender?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  idProofType?: string;
+  idProofNumber?: string;
+  photo?: string;
+  vehiclesLinked?: number | string;
+  treesAssigned?: number | string;
   status: string;
+  registrationDate?: string;
 }
 
 interface PersonModalProps {
@@ -15,8 +42,9 @@ interface PersonModalProps {
   onClose: () => void;
   editing: boolean;
   formData: PersonFormData;
-  handleChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
-  handleSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
+  submitting?: boolean;
+  onFieldChange: (name: string, value: any) => void;
+  handleSubmit: (e: React.FormEvent) => void;
 }
 
 const PersonModal: React.FC<PersonModalProps> = ({
@@ -24,57 +52,124 @@ const PersonModal: React.FC<PersonModalProps> = ({
   onClose,
   editing,
   formData,
-  handleChange,
+  submitting,
+  onFieldChange,
   handleSubmit,
 }) => {
   if (!isOpen) return null;
 
+  const sections: FormSectionConfig[] = [
+    {
+      title: "Personal Details",
+      description: "Core identity and contact information for this citizen.",
+      icon: User,
+      fields: [
+        { name: "name", label: "Full Name", type: "text", icon: User, required: true, span: 2 },
+        { name: "mobile", label: "Mobile Number", type: "tel", icon: Phone, required: true },
+        { name: "email", label: "Email", type: "email", icon: Mail },
+        { name: "dob", label: "Date of Birth", type: "date", icon: Calendar },
+        {
+          name: "gender",
+          label: "Gender",
+          type: "select",
+          icon: User,
+          options: [
+            { label: "Male", value: "Male" },
+            { label: "Female", value: "Female" },
+            { label: "Other", value: "Other" },
+          ],
+        },
+        { name: "photo", label: "Photo", type: "image", icon: User, uploadCategory: "users", span: 2 },
+      ],
+    },
+    {
+      title: "Address",
+      icon: MapPin,
+      fields: [
+        { name: "address", label: "Address", type: "text", icon: MapPin, span: 2 },
+        { name: "city", label: "City", type: "text", icon: Building2 },
+        { name: "state", label: "State", type: "text", icon: Building2 },
+        { name: "pincode", label: "Pincode", type: "text", icon: Hash },
+      ],
+    },
+    {
+      title: "Identity Proof",
+      icon: CreditCard,
+      fields: [
+        {
+          name: "idProofType",
+          label: "ID Proof Type",
+          type: "select",
+          icon: CreditCard,
+          options: [
+            { label: "Aadhaar", value: "Aadhaar" },
+            { label: "PAN", value: "PAN" },
+            { label: "Voter ID", value: "Voter ID" },
+            { label: "Driving License", value: "Driving License" },
+            { label: "Passport", value: "Passport" },
+          ],
+        },
+        { name: "idProofNumber", label: "ID Proof Number", type: "text", icon: Hash },
+      ],
+    },
+    {
+      title: "Tracking & Status",
+      icon: ShieldCheck,
+      fields: [
+        { name: "vehiclesLinked", label: "Vehicles Linked", type: "number", icon: Car },
+        { name: "treesAssigned", label: "Trees Assigned", type: "number", icon: TreePine },
+        {
+          name: "status",
+          label: "Status",
+          type: "select",
+          icon: ShieldCheck,
+          required: true,
+          options: [
+            { label: "Active", value: "Active" },
+            { label: "Inactive", value: "Inactive" },
+          ],
+        },
+        { name: "registrationDate", label: "Registration Date", type: "date", icon: Calendar },
+      ],
+    },
+  ];
+
   return (
     <div className="modal-overlay">
-      <div className="modal">
+      <div className="modal" style={{ width: 640 }}>
         <div className="modal-header">
           <h2>{editing ? "Edit Person" : "Add Person"}</h2>
           <button className="icon-btn" onClick={onClose}>
             <X size={18} />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="modal-form">
-          <div className="form-group">
-            <label>ID</label>
-            <input name="id" value={formData.id} onChange={handleChange} />
+
+        {editing && formData.personId && (
+          <div
+            style={{
+              marginBottom: 16,
+              fontSize: 13,
+              color: "var(--text-secondary)",
+              background: "rgba(43, 150, 79, 0.06)",
+              border: "1px solid var(--border-color)",
+              padding: "8px 12px",
+              borderRadius: 8,
+            }}
+          >
+            Person ID: <strong style={{ color: "var(--text-primary)" }}>{formData.personId}</strong>
           </div>
-          <div className="form-group">
-            <label>Name</label>
-            <input name="name" value={formData.name} onChange={handleChange} />
-          </div>
-          <div className="form-group">
-            <label>Phone</label>
-            <input name="phone" value={formData.phone} onChange={handleChange} />
-          </div>
-          <div className="form-group">
-            <label>Vehicles</label>
-            <input type="number" name="vehicles" value={formData.vehicles} onChange={handleChange} />
-          </div>
-          <div className="form-group">
-            <label>Trees</label>
-            <input type="number" name="trees" value={formData.trees} onChange={handleChange} />
-          </div>
-          <div className="form-group">
-            <label>Status</label>
-            <select name="status" value={formData.status} onChange={handleChange}>
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
-            </select>
-          </div>
-          <div className="modal-actions">
-            <button type="button" className="btn-danger" onClick={onClose}>
-              Cancel
-            </button>
-            <button type="submit" className="btn-primary">
-              {editing ? "Update Person" : "Add Person"}
-            </button>
-          </div>
-        </form>
+        )}
+
+        <SmartForm
+          sections={sections}
+          formData={formData}
+          onFieldChange={onFieldChange}
+          onSubmit={handleSubmit}
+          submitting={submitting}
+          submitLabel={editing ? "Update Person" : "Add Person"}
+          cancelLabel="Cancel"
+          onCancel={onClose}
+        />
       </div>
     </div>
   );

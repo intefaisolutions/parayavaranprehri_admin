@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Filter, Edit, Trash2, Award, Loader2 } from 'lucide-react';
+import { Plus, Filter, Edit, Trash2, Award, Loader2, Check, X as XIcon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
 import DataTable from "../components/DataTable";
@@ -21,9 +21,12 @@ interface Mitra {
   state?: string;
   membership: string;
   status: string;
+  source?: string;
   treesPlanted: number;
 }
 
+// Admin-created via this panel defaults to Approved; app self-registrations
+// (via the mobile app's own endpoint) always start Pending regardless.
 const initialForm: MitrasFormData = {
   name: "",
   mobile: "",
@@ -34,7 +37,7 @@ const initialForm: MitrasFormData = {
   district: "",
   state: "",
   membership: "free",
-  status: "Pending",
+  status: "Approved",
 };
 
 export const MitrasView = () => {
@@ -51,6 +54,7 @@ export const MitrasView = () => {
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [mitraToDelete, setMitraToDelete] = useState<Mitra | null>(null);
+  const [decidingId, setDecidingId] = useState<string | null>(null);
 
   const loadMitras = async () => {
     setLoading(true);
@@ -131,6 +135,32 @@ export const MitrasView = () => {
     setShowDeleteModal(true);
   };
 
+  const handleApprove = async (mitra: Mitra) => {
+    setDecidingId(mitra._id);
+    setError("");
+    try {
+      await apiFetch(`/api/v1/mitras/${mitra._id}/approve`, { method: "PATCH" });
+      await loadMitras();
+    } catch (err: any) {
+      setError(err.message || "Failed to approve Mitra");
+    } finally {
+      setDecidingId(null);
+    }
+  };
+
+  const handleReject = async (mitra: Mitra) => {
+    setDecidingId(mitra._id);
+    setError("");
+    try {
+      await apiFetch(`/api/v1/mitras/${mitra._id}/reject`, { method: "PATCH" });
+      await loadMitras();
+    } catch (err: any) {
+      setError(err.message || "Failed to reject Mitra");
+    } finally {
+      setDecidingId(null);
+    }
+  };
+
   const handleDelete = async () => {
     if (!mitraToDelete) return;
     try {
@@ -151,6 +181,16 @@ export const MitrasView = () => {
     { accessorKey: "vidhanSabha", header: "Vidhan Sabha", enableSorting: true },
     { accessorKey: "assignedZone", header: "Assigned Zone", enableSorting: true },
     { accessorKey: "treesPlanted", header: "Trees Planted", enableSorting: true },
+    {
+      accessorKey: "source",
+      header: "Source",
+      cell: ({ row }) => (
+        <span className={`status-badge ${row.original.source === "app" ? "status-warning" : "status-active"}`}>
+          {row.original.source === "app" ? "App" : "Admin"}
+        </span>
+      ),
+      enableSorting: false,
+    },
     {
       accessorKey: "status",
       header: "Status",
@@ -175,6 +215,28 @@ export const MitrasView = () => {
       header: "Actions",
       cell: ({ row }) => (
         <div style={{ display: 'flex', gap: '8px' }}>
+          {row.original.status === "Pending" && (
+            <>
+              <button
+                className="icon-btn"
+                title="Approve"
+                style={{ width: 28, height: 28 }}
+                onClick={() => handleApprove(row.original)}
+                disabled={decidingId === row.original._id}
+              >
+                {decidingId === row.original._id ? <Loader2 size={14} className="spin" /> : <Check size={14} />}
+              </button>
+              <button
+                className="icon-btn"
+                title="Reject"
+                style={{ width: 28, height: 28 }}
+                onClick={() => handleReject(row.original)}
+                disabled={decidingId === row.original._id}
+              >
+                <XIcon size={14} />
+              </button>
+            </>
+          )}
           <button
             className="icon-btn"
             title="Issue Certificate"
