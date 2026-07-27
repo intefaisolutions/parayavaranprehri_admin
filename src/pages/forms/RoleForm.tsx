@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { X, Loader2 } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { ShieldCheck, Loader2 } from "lucide-react";
 import { apiFetch } from "../../utils/apiConfig";
+import { FormPageHeader } from "../../components/form/FormPageHeader";
 
 export interface RoleFormData {
   _id?: string;
@@ -31,31 +33,32 @@ const SYSTEM_ROLE_OPTIONS = [
   { label: "Auditor", value: "auditor" },
 ];
 
-interface RolesModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  editing: boolean;
-  formData: RoleFormData;
-  submitting?: boolean;
-  onFieldChange: (name: string, value: any) => void;
-  handleSubmit: (e: React.FormEvent) => void;
-}
+const emptyForm: RoleFormData = {
+  name: "",
+  displayName: "",
+  description: "",
+  permissionKeys: [],
+  isActive: true,
+};
 
-const RolesModal: React.FC<RolesModalProps> = ({
-  isOpen,
-  onClose,
-  editing,
-  formData,
-  submitting,
-  onFieldChange,
-  handleSubmit,
-}) => {
+export const RoleForm = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const editRole = location.state?.role;
+  const isEditing = !!editRole;
+
+  const [formData, setFormData] = useState<RoleFormData>(
+    editRole ? { ...emptyForm, ...editRole } : emptyForm
+  );
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [loadingPermissions, setLoadingPermissions] = useState(false);
   const [permError, setPermError] = useState("");
 
   useEffect(() => {
-    if (!isOpen) return;
     const loadPermissions = async () => {
       setLoadingPermissions(true);
       setPermError("");
@@ -69,9 +72,11 @@ const RolesModal: React.FC<RolesModalProps> = ({
       }
     };
     loadPermissions();
-  }, [isOpen]);
+  }, []);
 
-  if (!isOpen) return null;
+  const handleFieldChange = (name: string, value: any) => {
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
 
   const groupedPermissions = permissions.reduce<Record<string, Permission[]>>((acc, perm) => {
     if (!acc[perm.resource]) acc[perm.resource] = [];
@@ -85,7 +90,7 @@ const RolesModal: React.FC<RolesModalProps> = ({
     const next = selectedKeys.includes(key)
       ? selectedKeys.filter((k) => k !== key)
       : [...selectedKeys, key];
-    onFieldChange("permissionKeys", next);
+    handleFieldChange("permissionKeys", next);
   };
 
   const toggleResourceAll = (keys: string[]) => {
@@ -93,26 +98,59 @@ const RolesModal: React.FC<RolesModalProps> = ({
     const next = allSelected
       ? selectedKeys.filter((k) => !keys.includes(k))
       : Array.from(new Set([...selectedKeys, ...keys]));
-    onFieldChange("permissionKeys", next);
+    handleFieldChange("permissionKeys", next);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setError("");
+
+    const { _id, ...payload } = formData;
+
+    try {
+      if (isEditing && _id) {
+        await apiFetch(`/api/v1/roles/${_id}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await apiFetch("/api/v1/roles", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+      }
+      navigate("/roles");
+    } catch (err: any) {
+      setError(err.message || "Failed to save role");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
-    <div className="modal-overlay">
-      <div className="modal" style={{ width: 680, maxHeight: "88vh", overflowY: "auto" }}>
-        <div className="modal-header">
-          <h2>{editing ? "Edit Role" : "Add Role"}</h2>
-          <button className="icon-btn" onClick={onClose}>
-            <X size={18} />
-          </button>
-        </div>
+    <div className="dashboard-area">
+      <FormPageHeader
+        icon={ShieldCheck}
+        title={isEditing ? "Edit Role" : "Add Role"}
+        subtitle="Manage user roles and module permissions."
+        onBack={() => navigate("/roles")}
+      />
+
+      <div className="card">
+        {error && (
+          <div style={{ background: "rgba(255, 61, 0, 0.1)", color: "#ff3d00", padding: "10px 12px", borderRadius: "8px", marginBottom: "12px", fontSize: 13 }}>
+            {error}
+          </div>
+        )}
 
         <form className="modal-form" onSubmit={handleSubmit}>
           <div className="form-group">
             <label>Role Key</label>
             <select
               value={formData.name}
-              onChange={(e) => onFieldChange("name", e.target.value)}
-              disabled={editing}
+              onChange={(e) => handleFieldChange("name", e.target.value)}
+              disabled={isEditing}
               required
             >
               <option value="">Select Role</option>
@@ -128,7 +166,7 @@ const RolesModal: React.FC<RolesModalProps> = ({
             <label>Display Name</label>
             <input
               value={formData.displayName}
-              onChange={(e) => onFieldChange("displayName", e.target.value)}
+              onChange={(e) => handleFieldChange("displayName", e.target.value)}
               required
             />
           </div>
@@ -137,7 +175,7 @@ const RolesModal: React.FC<RolesModalProps> = ({
             <label>Description</label>
             <textarea
               value={formData.description || ""}
-              onChange={(e) => onFieldChange("description", e.target.value)}
+              onChange={(e) => handleFieldChange("description", e.target.value)}
               rows={3}
             />
           </div>
@@ -147,7 +185,7 @@ const RolesModal: React.FC<RolesModalProps> = ({
               <input
                 type="checkbox"
                 checked={formData.isActive}
-                onChange={(e) => onFieldChange("isActive", e.target.checked)}
+                onChange={(e) => handleFieldChange("isActive", e.target.checked)}
               />
               Active
             </label>
@@ -165,7 +203,7 @@ const RolesModal: React.FC<RolesModalProps> = ({
             ) : (
               <div
                 style={{
-                  maxHeight: 260,
+                  maxHeight: 320,
                   overflowY: "auto",
                   border: "1px solid var(--border-color)",
                   borderRadius: 8,
@@ -210,12 +248,12 @@ const RolesModal: React.FC<RolesModalProps> = ({
           </div>
 
           <div className="modal-actions">
-            <button type="button" className="btn-danger" onClick={onClose}>
+            <button type="button" className="btn-danger" onClick={() => navigate("/roles")}>
               Cancel
             </button>
 
             <button type="submit" className="btn-primary" disabled={submitting}>
-              {submitting ? "Saving..." : editing ? "Update Role" : "Add Role"}
+              {submitting ? "Saving..." : isEditing ? "Update Role" : "Add Role"}
             </button>
           </div>
         </form>
@@ -224,4 +262,4 @@ const RolesModal: React.FC<RolesModalProps> = ({
   );
 };
 
-export default RolesModal;
+export default RoleForm;

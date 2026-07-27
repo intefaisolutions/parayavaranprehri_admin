@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Plus, Filter, Edit, Trash2, Eye, Loader2 } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import DataTable from "../components/DataTable";
-import NewsModal from "./modals/NewsModal";
-import type { NewsFormData } from "./modals/NewsModal";
 import DeleteConfirmModal from "./modals/DeleteConfirmModal";
 import { apiFetch } from "../utils/apiConfig";
 
@@ -20,29 +19,13 @@ interface News {
   status: string;
 }
 
-const initialForm: NewsFormData = {
-  title: "",
-  content: "",
-  category: "Environment",
-  image: "",
-  author: "",
-  publishedDate: "",
-  views: "",
-  tags: [],
-  status: "Draft",
-};
-
 const toDateInputValue = (value?: string) => (value ? value.slice(0, 10) : "");
 
 export const NewsView = () => {
+  const navigate = useNavigate();
   const [newsList, setNewsList] = useState<News[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-
-  const [showModal, setShowModal] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [formData, setFormData] = useState<NewsFormData>(initialForm);
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [newsToDelete, setNewsToDelete] = useState<News | null>(null);
@@ -63,68 +46,6 @@ export const NewsView = () => {
   useEffect(() => {
     loadNews();
   }, []);
-
-  const handleFieldChange = (name: string, value: any) => {
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
-    setError("");
-
-    const { _id, ...rest } = formData;
-    const payload = {
-      ...rest,
-      views: rest.views === "" || rest.views === undefined ? undefined : Number(rest.views),
-      publishedDate: rest.publishedDate || undefined,
-    };
-
-    try {
-      if (editing && _id) {
-        await apiFetch(`/api/v1/news/${_id}`, {
-          method: "PATCH",
-          body: JSON.stringify(payload),
-        });
-      } else {
-        await apiFetch("/api/v1/news", {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
-      }
-      setShowModal(false);
-      await loadNews();
-    } catch (err: any) {
-      setError(err.message || "Failed to save News");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const openAddModal = () => {
-    setEditing(false);
-    setError("");
-    setFormData(initialForm);
-    setShowModal(true);
-  };
-
-  const openEditModal = (news: News) => {
-    setEditing(true);
-    setError("");
-    setFormData({
-      _id: news._id,
-      title: news.title,
-      content: news.content,
-      category: news.category,
-      image: news.image || "",
-      author: news.author,
-      publishedDate: toDateInputValue(news.publishedDate),
-      views: news.views ?? 0,
-      tags: news.tags || [],
-      status: news.status,
-    });
-    setShowModal(true);
-  };
 
   const openDeleteModal = (news: News) => {
     setNewsToDelete(news);
@@ -213,7 +134,7 @@ export const NewsView = () => {
             className="icon-btn"
             style={{ width: 28, height: 28 }}
             title="View"
-            onClick={() => openEditModal(row.original)}
+            onClick={() => navigate("/news/edit", { state: { news: row.original } })}
           >
             <Eye size={14} />
           </button>
@@ -221,7 +142,7 @@ export const NewsView = () => {
           <button
             className="icon-btn"
             style={{ width: 28, height: 28 }}
-            onClick={() => openEditModal(row.original)}
+            onClick={() => navigate("/news/edit", { state: { news: row.original } })}
           >
             <Edit size={14} />
           </button>
@@ -252,7 +173,7 @@ export const NewsView = () => {
               <Filter size={18} />
             </button>
 
-            <button className="btn-primary" onClick={openAddModal}>
+            <button className="btn-primary" onClick={() => navigate("/news/add")}>
               <Plus size={18} />
               Add News
             </button>
@@ -279,17 +200,6 @@ export const NewsView = () => {
           )}
         </div>
       </div>
-
-      <NewsModal
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
-        editing={editing}
-        formData={formData}
-        submitting={submitting}
-        error={error}
-        onFieldChange={handleFieldChange}
-        handleSubmit={handleSubmit}
-      />
 
       <DeleteConfirmModal
         isOpen={showDeleteModal}

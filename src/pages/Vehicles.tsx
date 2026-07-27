@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Plus, Filter, Edit, Trash2, Loader2 } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import DataTable from "../components/DataTable";
-import VehicleModal from "./modals/VehicleModal";
-import type { VehicleFormData } from "./modals/VehicleModal";
 import DeleteConfirmModal from "./modals/DeleteConfirmModal";
 import { apiFetch } from "../utils/apiConfig";
 
@@ -18,23 +17,11 @@ interface Vehicle {
   createdAt?: string;
 }
 
-const initialForm: VehicleFormData = {
-  plate: "",
-  name: "",
-  vhId: "",
-  fuel: "",
-  insuranceId: "",
-};
-
 export const VehiclesView = () => {
+  const navigate = useNavigate();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-
-  const [showModal, setShowModal] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [formData, setFormData] = useState<VehicleFormData>(initialForm);
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [vehicleToDelete, setVehicleToDelete] = useState<Vehicle | null>(null);
@@ -55,57 +42,6 @@ export const VehiclesView = () => {
   useEffect(() => {
     loadVehicles();
   }, []);
-
-  const handleFieldChange = (name: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
-    setError("");
-
-    const { _id, ...payload } = formData;
-
-    try {
-      if (editing && _id) {
-        await apiFetch(`/api/v1/vehicles/${_id}`, {
-          method: "PATCH",
-          body: JSON.stringify(payload),
-        });
-      } else {
-        await apiFetch("/api/v1/vehicles", {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
-      }
-      setShowModal(false);
-      await loadVehicles();
-    } catch (err: any) {
-      setError(err.message || "Failed to save vehicle");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const openAddModal = () => {
-    setEditing(false);
-    setFormData(initialForm);
-    setShowModal(true);
-  };
-
-  const openEditModal = (vehicle: Vehicle) => {
-    setEditing(true);
-    setFormData({
-      _id: vehicle._id,
-      plate: vehicle.plate,
-      name: vehicle.name,
-      vhId: vehicle.vhId,
-      fuel: vehicle.fuel,
-      insuranceId: vehicle.insuranceId || "",
-    });
-    setShowModal(true);
-  };
 
   const openDeleteModal = (vehicle: Vehicle) => {
     setVehicleToDelete(vehicle);
@@ -148,7 +84,7 @@ export const VehiclesView = () => {
           <button
             className="icon-btn"
             style={{ width: 28, height: 28 }}
-            onClick={() => openEditModal(row.original)}
+            onClick={() => navigate("/vehicles/edit", { state: { vehicle: row.original } })}
           >
             <Edit size={14} />
           </button>
@@ -179,7 +115,7 @@ export const VehiclesView = () => {
               <Filter size={18} />
             </button>
 
-            <button className="btn-primary" onClick={openAddModal}>
+            <button className="btn-primary" onClick={() => navigate("/vehicles/add")}>
               <Plus size={18} />
               Add Vehicle
             </button>
@@ -206,16 +142,6 @@ export const VehiclesView = () => {
           )}
         </div>
       </div>
-
-      <VehicleModal
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
-        editing={editing}
-        formData={formData}
-        submitting={submitting}
-        onFieldChange={handleFieldChange}
-        handleSubmit={handleSubmit}
-      />
 
       <DeleteConfirmModal
         isOpen={showDeleteModal}

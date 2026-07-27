@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Plus, Filter, Edit, Trash2, Loader2 } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import DataTable from "../components/DataTable";
-import RolesModal from "./modals/RolesModal";
-import type { RoleFormData } from "./modals/RolesModal";
 import DeleteConfirmModal from "./modals/DeleteConfirmModal";
 import { apiFetch } from "../utils/apiConfig";
 
@@ -18,23 +17,11 @@ interface Role {
   createdAt?: string;
 }
 
-const initialForm: RoleFormData = {
-  name: "",
-  displayName: "",
-  description: "",
-  permissionKeys: [],
-  isActive: true,
-};
-
 export const RolesView = () => {
+  const navigate = useNavigate();
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-
-  const [showModal, setShowModal] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [formData, setFormData] = useState<RoleFormData>(initialForm);
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [roleToDelete, setRoleToDelete] = useState<Role | null>(null);
@@ -55,57 +42,6 @@ export const RolesView = () => {
   useEffect(() => {
     loadRoles();
   }, []);
-
-  const handleFieldChange = (name: string, value: any) => {
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
-    setError("");
-
-    const { _id, ...payload } = formData;
-
-    try {
-      if (editing && _id) {
-        await apiFetch(`/api/v1/roles/${_id}`, {
-          method: "PATCH",
-          body: JSON.stringify(payload),
-        });
-      } else {
-        await apiFetch("/api/v1/roles", {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
-      }
-      setShowModal(false);
-      await loadRoles();
-    } catch (err: any) {
-      setError(err.message || "Failed to save role");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const openAddModal = () => {
-    setEditing(false);
-    setFormData(initialForm);
-    setShowModal(true);
-  };
-
-  const openEditModal = (role: Role) => {
-    setEditing(true);
-    setFormData({
-      _id: role._id,
-      name: role.name,
-      displayName: role.displayName,
-      description: role.description || "",
-      permissionKeys: role.permissionKeys || [],
-      isActive: role.isActive,
-    });
-    setShowModal(true);
-  };
 
   const openDeleteModal = (role: Role) => {
     setRoleToDelete(role);
@@ -161,7 +97,7 @@ export const RolesView = () => {
           <button
             className="icon-btn"
             style={{ width: 28, height: 28 }}
-            onClick={() => openEditModal(row.original)}
+            onClick={() => navigate("/roles/edit", { state: { role: row.original } })}
           >
             <Edit size={14} />
           </button>
@@ -194,7 +130,7 @@ export const RolesView = () => {
               <Filter size={18} />
             </button>
 
-            <button className="btn-primary" onClick={openAddModal}>
+            <button className="btn-primary" onClick={() => navigate("/roles/add")}>
               <Plus size={18} />
               Add Role
             </button>
@@ -221,16 +157,6 @@ export const RolesView = () => {
           )}
         </div>
       </div>
-
-      <RolesModal
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
-        editing={editing}
-        formData={formData}
-        submitting={submitting}
-        onFieldChange={handleFieldChange}
-        handleSubmit={handleSubmit}
-      />
 
       <DeleteConfirmModal
         isOpen={showDeleteModal}

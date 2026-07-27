@@ -1,7 +1,7 @@
-import React, { useState } from "react";
-import { AlertCircle, CheckCircle2, ImageOff, Loader2, UploadCloud, X } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { AlertCircle, CheckCircle2, ExternalLink, ImageOff, Loader2, UploadCloud, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { apiUpload } from "../../utils/apiConfig";
+import { apiFetch, apiUpload } from "../../utils/apiConfig";
 
 export type FieldType =
   | "text"
@@ -80,6 +80,64 @@ const SmartField: React.FC<SmartFieldProps> = ({ field, value, onChange }) => {
   const [uploadError, setUploadError] = useState("");
   const [tagDraft, setTagDraft] = useState("");
   const [galleryUrlDraft, setGalleryUrlDraft] = useState("");
+  const [previewSrc, setPreviewSrc] = useState("");
+  const [previewBroken, setPreviewBroken] = useState(false);
+
+  const isS3Url = (url: string) =>
+    /amazonaws\.com|\.s3[.-]/i.test(url);
+
+  // Private S3 objects return 403 in <img>; resolve a short-lived signed URL for preview.
+  useEffect(() => {
+    let cancelled = false;
+    setPreviewBroken(false);
+
+    if (!value || typeof value !== "string") {
+      setPreviewSrc("");
+      return;
+    }
+
+    if (!isS3Url(value)) {
+      setPreviewSrc(value);
+      return;
+    }
+
+    setPreviewSrc(value);
+    (async () => {
+      try {
+        const data = await apiFetch<{ signedUrl: string }>(
+          `/api/v1/uploads/signed?url=${encodeURIComponent(value)}`
+        );
+        if (!cancelled && data?.signedUrl) {
+          setPreviewSrc(data.signedUrl);
+          setPreviewBroken(false);
+        }
+      } catch {
+        // Keep the original URL; onError will mark it broken if it still fails.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [value]);
+
+  const openPhotoInNewTab = async () => {
+    if (!value) return;
+    try {
+      if (isS3Url(value)) {
+        const data = await apiFetch<{ signedUrl: string }>(
+          `/api/v1/uploads/signed?url=${encodeURIComponent(value)}`
+        );
+        if (data?.signedUrl) {
+          window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+          return;
+        }
+      }
+    } catch {
+      // Fall through to original URL
+    }
+    window.open(previewSrc || value, "_blank", "noopener,noreferrer");
+  };
 
   const handle = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -245,17 +303,59 @@ const SmartField: React.FC<SmartFieldProps> = ({ field, value, onChange }) => {
       </label>
 
       {type === "image" ? (
-        <div className="ff-image-row">
-          <div className="ff-control">{control}</div>
-          <label className={`ff-upload-btn ${uploading ? "is-uploading" : ""}`} title="Upload image">
-            {uploading ? <Loader2 size={16} className="spin" /> : <UploadCloud size={16} />}
-            <input type="file" accept="image/*" hidden onChange={handleImageFileChange} disabled={uploading} />
-          </label>
-          <div className="ff-image-preview">
-            {value ? (
-              <img src={value} alt={label} onError={(e) => ((e.target as HTMLImageElement).style.display = "none")} />
+        <div className="ff-image-uploader">
+          <button
+            type="button"
+            className={`ff-image-preview ${value ? "is-clickable" : ""}`}
+            onClick={value ? openPhotoInNewTab : undefined}
+            title={value ? "Open photo in new tab" : undefined}
+            disabled={!value}
+          >
+            {value && previewSrc && !previewBroken ? (
+              <img
+                src={previewSrc}
+                alt={label}
+                onError={() => setPreviewBroken(true)}
+              />
             ) : (
-              <ImageOff size={20} color="var(--text-secondary)" />
+              <ImageOff size={22} color="var(--text-secondary)" />
+            )}
+            {value && (
+              <span className="ff-image-open-hint">
+                <ExternalLink size={12} />
+              </span>
+            )}
+          </button>
+          <div className="ff-image-uploader-actions">
+            <div className="ff-image-uploader-buttons">
+              <label className={`ff-upload-btn-wide ${uploading ? "is-uploading" : ""}`}>
+                {uploading ? <Loader2 size={15} className="spin" /> : <UploadCloud size={15} />}
+                <span>{uploading ? "Uploading..." : value ? "Change Photo" : "Upload Photo"}</span>
+                <input type="file" accept="image/*" hidden onChange={handleImageFileChange} disabled={uploading} />
+              </label>
+              {value && (
+                <button type="button" className="ff-image-remove" onClick={() => onChange(name, "")}>
+                  <X size={13} /> Remove
+                </button>
+              )}
+              {value && (
+                <button type="button" className="ff-image-open" onClick={openPhotoInNewTab}>
+                  <ExternalLink size={13} /> Open
+                </button>
+              )}
+            </div>
+            <input
+              type="url"
+              className="ff-image-url-input"
+              value={value ?? ""}
+              onChange={handle}
+              placeholder="or paste an image URL here"
+              disabled={disabled}
+            />
+            {previewBroken && value && (
+              <span className="ff-help" style={{ color: "var(--danger-color)" }}>
+                Preview blocked (private S3). Use Open to view with a signed link.
+              </span>
             )}
           </div>
         </div>

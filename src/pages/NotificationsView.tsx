@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Plus, Filter, Edit, Trash2, Loader2, Send, Bell } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import DataTable from "../components/DataTable";
-import NotificationModal from "./modals/NotificationModal";
-import type { NotificationFormData } from "./modals/NotificationModal";
 import DeleteConfirmModal from "./modals/DeleteConfirmModal";
 import { apiFetch } from "../utils/apiConfig";
 
@@ -22,28 +21,12 @@ interface Notification {
   failureReason?: string | null;
 }
 
-const initialForm: NotificationFormData = {
-  notificationTitle: "",
-  message: "",
-  notificationType: "push",
-  targetAudience: "All Users",
-  locationFilter: "All Locations",
-  status: "Draft",
-  scheduledAt: "",
-  sentBy: "",
-  deliveryCount: 0,
-};
-
 export const NotificationsView = () => {
+  const navigate = useNavigate();
   const [notificationList, setNotificationList] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
   const [sendingId, setSendingId] = useState<string | null>(null);
-
-  const [showModal, setShowModal] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [formData, setFormData] = useState<NotificationFormData>(initialForm);
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [notificationToDelete, setNotificationToDelete] = useState<Notification | null>(null);
@@ -64,66 +47,6 @@ export const NotificationsView = () => {
   useEffect(() => {
     loadNotifications();
   }, []);
-
-  const handleFieldChange = (name: string, value: any) => {
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
-    setError("");
-
-    const { _id, ...rest } = formData;
-    const payload: Record<string, any> = { ...rest };
-    if (!payload.scheduledAt) delete payload.scheduledAt;
-    if (payload.deliveryCount === "" || payload.deliveryCount === undefined) {
-      delete payload.deliveryCount;
-    }
-
-    try {
-      if (editing && _id) {
-        await apiFetch(`/api/v1/notifications/${_id}`, {
-          method: "PATCH",
-          body: JSON.stringify(payload),
-        });
-      } else {
-        await apiFetch("/api/v1/notifications", {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
-      }
-      setShowModal(false);
-      await loadNotifications();
-    } catch (err: any) {
-      setError(err.message || "Failed to save notification");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const openAddModal = () => {
-    setEditing(false);
-    setFormData(initialForm);
-    setShowModal(true);
-  };
-
-  const openEditModal = (notification: Notification) => {
-    setEditing(true);
-    setFormData({
-      _id: notification._id,
-      notificationTitle: notification.notificationTitle,
-      message: notification.message,
-      notificationType: notification.notificationType,
-      targetAudience: notification.targetAudience,
-      locationFilter: notification.locationFilter,
-      status: notification.status,
-      scheduledAt: notification.scheduledAt ? String(notification.scheduledAt).slice(0, 10) : "",
-      sentBy: notification.sentBy || "",
-      deliveryCount: notification.deliveryCount ?? 0,
-    });
-    setShowModal(true);
-  };
 
   const openDeleteModal = (notification: Notification) => {
     setNotificationToDelete(notification);
@@ -204,7 +127,7 @@ export const NotificationsView = () => {
               {sendingId === row.original._id ? <Loader2 size={14} className="spin" /> : <Send size={14} />}
             </button>
           )}
-          <button className="icon-btn" style={{ width: 28, height: 28 }} onClick={() => openEditModal(row.original)}>
+          <button className="icon-btn" style={{ width: 28, height: 28 }} onClick={() => navigate("/notifications/edit", { state: { notification: row.original } })}>
             <Edit size={14} />
           </button>
           <button className="icon-btn" style={{ width: 28, height: 28 }} onClick={() => openDeleteModal(row.original)}>
@@ -228,7 +151,7 @@ export const NotificationsView = () => {
             <button className="icon-btn" title="Filter">
               <Filter size={18} />
             </button>
-            <button className="btn-primary" onClick={openAddModal}>
+            <button className="btn-primary" onClick={() => navigate("/notifications/add")}>
               <Plus size={18} />
               Add Notification
             </button>
@@ -275,7 +198,7 @@ export const NotificationsView = () => {
               <p style={{ color: "var(--text-secondary)", marginBottom: 20 }}>
                 Compose your first notification to reach your audience.
               </p>
-              <button className="btn-primary" onClick={openAddModal}>
+              <button className="btn-primary" onClick={() => navigate("/notifications/add")}>
                 <Plus size={18} />
                 Add First Notification
               </button>
@@ -289,16 +212,6 @@ export const NotificationsView = () => {
           )}
         </div>
       </div>
-
-      <NotificationModal
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
-        editing={editing}
-        formData={formData}
-        submitting={submitting}
-        onFieldChange={handleFieldChange}
-        handleSubmit={handleSubmit}
-      />
 
       <DeleteConfirmModal
         isOpen={showDeleteModal}

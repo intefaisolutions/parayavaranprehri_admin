@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Plus, Filter, Edit, Trash2, Loader2, Settings as SettingsIcon, ToggleLeft, ToggleRight } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import DataTable from "../components/DataTable";
-import SystemSettingModal from "./modals/SystemSettingModal";
-import type { SettingFormData } from "./modals/SystemSettingModal";
 import DeleteConfirmModal from "./modals/DeleteConfirmModal";
 import { apiFetch } from "../utils/apiConfig";
 
@@ -17,22 +16,11 @@ interface SystemSetting {
   isActive: boolean;
 }
 
-const initialForm: SettingFormData = {
-  settingName: "",
-  category: "General",
-  value: "",
-  isActive: true,
-};
-
 export const SettingsView = () => {
+  const navigate = useNavigate();
   const [settingList, setSettingList] = useState<SystemSetting[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-
-  const [showModal, setShowModal] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [formData, setFormData] = useState<SettingFormData>(initialForm);
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [settingToDelete, setSettingToDelete] = useState<SystemSetting | null>(null);
@@ -54,56 +42,6 @@ export const SettingsView = () => {
   useEffect(() => {
     loadSettings();
   }, []);
-
-  const handleFieldChange = (name: string, value: any) => {
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
-    setError("");
-
-    const { _id, ...payload } = formData;
-
-    try {
-      if (editing && _id) {
-        await apiFetch(`/api/v1/settings/${_id}`, {
-          method: "PATCH",
-          body: JSON.stringify(payload),
-        });
-      } else {
-        await apiFetch("/api/v1/settings", {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
-      }
-      setShowModal(false);
-      await loadSettings();
-    } catch (err: any) {
-      setError(err.message || "Failed to save setting");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const openAddModal = () => {
-    setEditing(false);
-    setFormData(initialForm);
-    setShowModal(true);
-  };
-
-  const openEditModal = (setting: SystemSetting) => {
-    setEditing(true);
-    setFormData({
-      _id: setting._id,
-      settingName: setting.settingName,
-      category: setting.category,
-      value: setting.value,
-      isActive: setting.isActive,
-    });
-    setShowModal(true);
-  };
 
   const openDeleteModal = (setting: SystemSetting) => {
     setSettingToDelete(setting);
@@ -183,7 +121,7 @@ export const SettingsView = () => {
       enableSorting: false,
       cell: ({ row }) => (
         <div style={{ display: "flex", gap: "8px" }}>
-          <button className="icon-btn" style={{ width: 28, height: 28 }} onClick={() => openEditModal(row.original)}>
+          <button className="icon-btn" style={{ width: 28, height: 28 }} onClick={() => navigate("/settings/edit", { state: { setting: row.original } })}>
             <Edit size={14} />
           </button>
           <button className="icon-btn" style={{ width: 28, height: 28 }} onClick={() => openDeleteModal(row.original)}>
@@ -208,7 +146,7 @@ export const SettingsView = () => {
               <Filter size={18} />
             </button>
 
-            <button className="btn-primary" onClick={openAddModal}>
+            <button className="btn-primary" onClick={() => navigate("/settings/add")}>
               <Plus size={18} />
               Add Setting
             </button>
@@ -247,7 +185,7 @@ export const SettingsView = () => {
             >
               <SettingsIcon size={40} style={{ marginBottom: 16, opacity: 0.5 }} />
               <p style={{ marginBottom: 16 }}>No system settings configured yet.</p>
-              <button className="btn-primary" onClick={openAddModal}>
+              <button className="btn-primary" onClick={() => navigate("/settings/add")}>
                 <Plus size={18} />
                 Add your first setting
               </button>
@@ -261,16 +199,6 @@ export const SettingsView = () => {
           )}
         </div>
       </div>
-
-      <SystemSettingModal
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
-        editing={editing}
-        formData={formData}
-        submitting={submitting}
-        onFieldChange={handleFieldChange}
-        handleSubmit={handleSubmit}
-      />
 
       <DeleteConfirmModal
         isOpen={showDeleteModal}

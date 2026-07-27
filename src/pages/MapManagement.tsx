@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Plus, Filter, Edit, Trash2, Eye, Loader2 } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import DataTable from "../components/DataTable";
-import MapManagementModal from "./modals/MapManagementModal";
-import type { MapFormData } from "./modals/MapManagementModal";
 import DeleteConfirmModal from "./modals/DeleteConfirmModal";
 import { apiFetch } from "../utils/apiConfig";
 
@@ -19,25 +18,11 @@ interface MapRecord {
   updatedAt?: string;
 }
 
-const initialForm: MapFormData = {
-  locationName: "",
-  treeCount: "",
-  latitude: "",
-  longitude: "",
-  plantationArea: "",
-  addedBy: "",
-  status: "Active",
-};
-
 export const MapView = () => {
+  const navigate = useNavigate();
   const [maps, setMaps] = useState<MapRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-
-  const [showModal, setShowModal] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [formData, setFormData] = useState<MapFormData>(initialForm);
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [mapToDelete, setMapToDelete] = useState<MapRecord | null>(null);
@@ -58,67 +43,6 @@ export const MapView = () => {
   useEffect(() => {
     loadMaps();
   }, []);
-
-  const handleFieldChange = (name: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
-    setError("");
-
-    const { _id, ...rest } = formData;
-    const payload = {
-      ...rest,
-      treeCount: rest.treeCount === "" ? undefined : Number(rest.treeCount),
-      latitude: rest.latitude === "" ? undefined : Number(rest.latitude),
-      longitude: rest.longitude === "" ? undefined : Number(rest.longitude),
-    };
-
-    try {
-      if (editing && _id) {
-        await apiFetch(`/api/v1/maps/${_id}`, {
-          method: "PATCH",
-          body: JSON.stringify(payload),
-        });
-      } else {
-        await apiFetch("/api/v1/maps", {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
-      }
-      setShowModal(false);
-      await loadMaps();
-    } catch (err: any) {
-      setError(err.message || "Failed to save map record");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const openAddModal = () => {
-    setEditing(false);
-    setError("");
-    setFormData(initialForm);
-    setShowModal(true);
-  };
-
-  const openEditModal = (item: MapRecord) => {
-    setEditing(true);
-    setError("");
-    setFormData({
-      _id: item._id,
-      locationName: item.locationName,
-      treeCount: String(item.treeCount ?? 0),
-      latitude: item.latitude !== undefined ? String(item.latitude) : "",
-      longitude: item.longitude !== undefined ? String(item.longitude) : "",
-      plantationArea: item.plantationArea || "",
-      addedBy: item.addedBy || "",
-      status: item.status,
-    });
-    setShowModal(true);
-  };
 
   const openDeleteModal = (item: MapRecord) => {
     setMapToDelete(item);
@@ -201,7 +125,7 @@ export const MapView = () => {
           <button
             className="icon-btn"
             style={{ width: 28, height: 28 }}
-            onClick={() => openEditModal(row.original)}
+            onClick={() => navigate("/map/edit", { state: { mapRecord: row.original } })}
           >
             <Edit size={14} />
           </button>
@@ -233,7 +157,7 @@ export const MapView = () => {
               <Filter size={18} />
             </button>
 
-            <button className="btn-primary" onClick={openAddModal}>
+            <button className="btn-primary" onClick={() => navigate("/map/add")}>
               <Plus size={18} />
               Add Map Record
             </button>
@@ -268,17 +192,6 @@ export const MapView = () => {
           )}
         </div>
       </div>
-
-      <MapManagementModal
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
-        editing={editing}
-        formData={formData}
-        submitting={submitting}
-        error={error}
-        onFieldChange={handleFieldChange}
-        handleSubmit={handleSubmit}
-      />
 
       <DeleteConfirmModal
         isOpen={showDeleteModal}

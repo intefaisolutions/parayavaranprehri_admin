@@ -3,8 +3,6 @@ import { Plus, Filter, Edit, Trash2, Award, Loader2, Check, X as XIcon } from 'l
 import { useNavigate } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
 import DataTable from "../components/DataTable";
-import MitrasModal from "./modals/MitrasModal";
-import type { MitrasFormData } from "./modals/MitrasModal";
 import DeleteConfirmModal from "./modals/DeleteConfirmModal";
 import { apiFetch } from "../utils/apiConfig";
 
@@ -25,32 +23,12 @@ interface Mitra {
   treesPlanted: number;
 }
 
-// Admin-created via this panel defaults to Approved; app self-registrations
-// (via the mobile app's own endpoint) always start Pending regardless.
-const initialForm: MitrasFormData = {
-  name: "",
-  mobile: "",
-  email: "",
-  profession: "",
-  vidhanSabha: "",
-  assignedZone: "",
-  district: "",
-  state: "",
-  membership: "free",
-  status: "Approved",
-};
-
 export const MitrasView = () => {
   const navigate = useNavigate();
 
   const [mitras, setMitras] = useState<Mitra[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-
-  const [showModal, setShowModal] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [formData, setFormData] = useState<MitrasFormData>(initialForm);
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [mitraToDelete, setMitraToDelete] = useState<Mitra | null>(null);
@@ -72,63 +50,6 @@ export const MitrasView = () => {
   useEffect(() => {
     loadMitras();
   }, []);
-
-  const handleFieldChange = (name: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
-    setError("");
-
-    const { _id, mitraId: _mitraId, ...payload } = formData;
-
-    try {
-      if (editing && _id) {
-        await apiFetch(`/api/v1/mitras/${_id}`, {
-          method: "PATCH",
-          body: JSON.stringify(payload),
-        });
-      } else {
-        await apiFetch("/api/v1/mitras", {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
-      }
-      setShowModal(false);
-      await loadMitras();
-    } catch (err: any) {
-      setError(err.message || "Failed to save Mitra");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const openAddModal = () => {
-    setEditing(false);
-    setFormData(initialForm);
-    setShowModal(true);
-  };
-
-  const openEditModal = (mitra: Mitra) => {
-    setEditing(true);
-    setFormData({
-      _id: mitra._id,
-      mitraId: mitra.mitraId,
-      name: mitra.name,
-      mobile: mitra.mobile,
-      email: mitra.email || "",
-      profession: mitra.profession || "",
-      vidhanSabha: mitra.vidhanSabha || "",
-      assignedZone: mitra.assignedZone || "",
-      district: mitra.district || "",
-      state: mitra.state || "",
-      membership: mitra.membership,
-      status: mitra.status,
-    });
-    setShowModal(true);
-  };
 
   const openDeleteModal = (mitra: Mitra) => {
     setMitraToDelete(mitra);
@@ -242,12 +163,12 @@ export const MitrasView = () => {
             title="Issue Certificate"
             style={{ width: 28, height: 28 }}
             onClick={() =>
-              navigate("/certificates/issued", { state: { mitra: row.original } })
+              navigate("/certificates/issue", { state: { mitra: row.original } })
             }
           >
             <Award size={14} />
           </button>
-          <button className="icon-btn" style={{ width: 28, height: 28 }} onClick={() => openEditModal(row.original)}>
+          <button className="icon-btn" style={{ width: 28, height: 28 }} onClick={() => navigate("/mitras/edit", { state: { mitra: row.original } })}>
             <Edit size={14} />
           </button>
           <button className="icon-btn" style={{ width: 28, height: 28 }} onClick={() => openDeleteModal(row.original)}>
@@ -271,7 +192,7 @@ export const MitrasView = () => {
             <button className="icon-btn" title="Filter">
               <Filter size={18} />
             </button>
-            <button className="btn-primary" onClick={openAddModal}>
+            <button className="btn-primary" onClick={() => navigate("/mitras/add")}>
               <Plus size={18} />
               Assign Mitra
             </button>
@@ -298,16 +219,6 @@ export const MitrasView = () => {
           )}
         </div>
       </div>
-
-      <MitrasModal
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
-        editing={editing}
-        formData={formData}
-        submitting={submitting}
-        onFieldChange={handleFieldChange}
-        handleSubmit={handleSubmit}
-      />
 
       <DeleteConfirmModal
         isOpen={showDeleteModal}

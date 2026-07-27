@@ -1,7 +1,10 @@
-import React from "react";
-import { X, Bell, MessageSquare, Users, MapPinned, ShieldCheck, CalendarClock, UserCog, Hash } from "lucide-react";
+import React, { useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { Bell, MessageSquare, Users, MapPinned, ShieldCheck, CalendarClock, UserCog, Hash } from "lucide-react";
+import { apiFetch } from "../../utils/apiConfig";
 import { SmartForm } from "../../components/form/SmartForm";
 import type { FormSectionConfig } from "../../components/form/SmartForm";
+import { FormPageHeader } from "../../components/form/FormPageHeader";
 
 export interface NotificationFormData {
   _id?: string;
@@ -16,28 +19,74 @@ export interface NotificationFormData {
   deliveryCount?: number | "";
 }
 
-interface NotificationModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  editing: boolean;
-  formData: NotificationFormData;
-  submitting?: boolean;
-  error?: string;
-  onFieldChange: (name: string, value: any) => void;
-  handleSubmit: (e: React.FormEvent) => void;
-}
+const emptyForm: NotificationFormData = {
+  notificationTitle: "",
+  message: "",
+  notificationType: "push",
+  targetAudience: "All Users",
+  locationFilter: "All Locations",
+  status: "Draft",
+  scheduledAt: "",
+  sentBy: "",
+  deliveryCount: 0,
+};
 
-const NotificationModal: React.FC<NotificationModalProps> = ({
-  isOpen,
-  onClose,
-  editing,
-  formData,
-  submitting,
-  error,
-  onFieldChange,
-  handleSubmit,
-}) => {
-  if (!isOpen) return null;
+export const NotificationForm = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const editNotification = location.state?.notification;
+  const isEditing = !!editNotification;
+
+  const [formData, setFormData] = useState<NotificationFormData>(
+    editNotification
+      ? {
+          ...emptyForm,
+          ...editNotification,
+          scheduledAt: editNotification.scheduledAt ? String(editNotification.scheduledAt).slice(0, 10) : "",
+          deliveryCount: editNotification.deliveryCount ?? 0,
+        }
+      : emptyForm
+  );
+
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleFieldChange = (name: string, value: any) => {
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setError("");
+
+    const { _id, ...rest } = formData;
+    const payload: Record<string, any> = { ...rest };
+    if (!payload.scheduledAt) delete payload.scheduledAt;
+    if (payload.deliveryCount === "" || payload.deliveryCount === undefined) {
+      delete payload.deliveryCount;
+    }
+
+    try {
+      if (isEditing && _id) {
+        await apiFetch(`/api/v1/notifications/${_id}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await apiFetch("/api/v1/notifications", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+      }
+      navigate("/notifications");
+    } catch (err: any) {
+      setError(err.message || "Failed to save notification");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const sections: FormSectionConfig[] = [
     {
@@ -124,29 +173,29 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
   ];
 
   return (
-    <div className="modal-overlay">
-      <div className="modal" style={{ width: 640 }}>
-        <div className="modal-header">
-          <h2>{editing ? "Edit Notification" : "Compose Notification"}</h2>
-          <button className="icon-btn" onClick={onClose}>
-            <X size={18} />
-          </button>
-        </div>
+    <div className="dashboard-area">
+      <FormPageHeader
+        icon={Bell}
+        title={isEditing ? "Edit Notification" : "Compose Notification"}
+        subtitle="Compose, schedule and send notifications to your audience."
+        onBack={() => navigate("/notifications")}
+      />
 
+      <div className="card">
         <SmartForm
           sections={sections}
           formData={formData}
-          onFieldChange={onFieldChange}
+          onFieldChange={handleFieldChange}
           onSubmit={handleSubmit}
           submitting={submitting}
           error={error}
-          submitLabel={editing ? "Update Notification" : "Add Notification"}
+          submitLabel={isEditing ? "Update Notification" : "Add Notification"}
           cancelLabel="Cancel"
-          onCancel={onClose}
+          onCancel={() => navigate("/notifications")}
         />
       </div>
     </div>
   );
 };
 
-export default NotificationModal;
+export default NotificationForm;

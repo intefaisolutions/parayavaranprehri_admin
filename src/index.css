@@ -747,6 +747,45 @@ button {
   overflow: hidden;
   background: rgba(0, 0, 0, 0.02);
   flex-shrink: 0;
+  position: relative;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+}
+
+.ff-image-preview.is-clickable {
+  cursor: pointer;
+  border-style: solid;
+}
+
+.ff-image-preview.is-clickable:hover {
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px rgba(43, 150, 79, 0.15);
+}
+
+.ff-image-preview:disabled {
+  cursor: default;
+}
+
+.ff-image-open-hint {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+}
+
+.ff-image-preview.is-clickable:hover .ff-image-open-hint {
+  opacity: 1;
 }
 
 .ff-upload-btn {
@@ -771,6 +810,114 @@ button {
 .ff-upload-btn.is-uploading {
   opacity: 0.7;
   cursor: wait;
+}
+
+.ff-image-uploader {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.ff-image-uploader .ff-image-preview {
+  width: 72px;
+  height: 72px;
+}
+
+.ff-image-uploader-actions {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ff-image-uploader-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ff-upload-btn-wide {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background: rgba(43, 150, 79, 0.08);
+  color: var(--accent-color);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.ff-upload-btn-wide:hover {
+  background: rgba(43, 150, 79, 0.16);
+}
+
+.ff-upload-btn-wide.is-uploading {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.ff-image-remove {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--danger-color);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ff-image-remove:hover {
+  background: rgba(220, 38, 38, 0.08);
+}
+
+.ff-image-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ff-image-open:hover {
+  background: rgba(43, 150, 79, 0.08);
+  color: var(--accent-color);
+  border-color: var(--accent-color);
+}
+
+.ff-image-url-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.02);
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.ff-image-url-input:focus {
+  border-color: var(--accent-color);
+  background: #fff;
+  color: var(--text-primary);
 }
 
 .ff-gallery-grid {
@@ -974,7 +1121,8 @@ button {
 .ff-image-preview img {
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
+  display: block;
 }
 
 .smart-form-actions {

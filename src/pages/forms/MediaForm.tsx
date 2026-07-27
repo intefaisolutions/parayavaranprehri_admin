@@ -1,6 +1,8 @@
 import React, { useState } from "react";
-import { X, FileText, User, Layers, ShieldCheck, UploadCloud, Loader2 } from "lucide-react";
-import { apiUpload } from "../../utils/apiConfig";
+import { useLocation, useNavigate } from "react-router-dom";
+import { FileText, User, Layers, ShieldCheck, UploadCloud, Loader2 } from "lucide-react";
+import { apiFetch, apiUpload } from "../../utils/apiConfig";
+import { FormPageHeader } from "../../components/form/FormPageHeader";
 
 export interface MediaFormData {
   _id?: string;
@@ -13,16 +15,15 @@ export interface MediaFormData {
   status: string;
 }
 
-interface MediaModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  editing: boolean;
-  formData: MediaFormData;
-  submitting?: boolean;
-  error?: string;
-  onFieldChange: (name: string, value: any) => void;
-  handleSubmit: (e: React.FormEvent) => void;
-}
+const emptyForm: MediaFormData = {
+  name: "",
+  mediaType: "Image",
+  url: "",
+  fileSize: "",
+  uploadedBy: "",
+  usedInModule: "",
+  status: "Active",
+};
 
 const formatFileSize = (bytes: number): string => {
   if (bytes < 1024) return `${bytes} B`;
@@ -37,25 +38,29 @@ const guessMediaType = (file: File): string => {
   return "Document";
 };
 
-const MediaModal: React.FC<MediaModalProps> = ({
-  isOpen,
-  onClose,
-  editing,
-  formData,
-  submitting,
-  error,
-  onFieldChange,
-  handleSubmit,
-}) => {
+export const MediaForm = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const editMedia = location.state?.media;
+  const isEditing = !!editMedia;
+
+  const [formData, setFormData] = useState<MediaFormData>(
+    editMedia ? { ...emptyForm, ...editMedia } : emptyForm
+  );
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
 
-  if (!isOpen) return null;
+  const handleFieldChange = (name: string, value: any) => {
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => {
-    onFieldChange(e.target.name, e.target.value);
+    handleFieldChange(e.target.name, e.target.value);
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -67,12 +72,12 @@ const MediaModal: React.FC<MediaModalProps> = ({
     setUploadError("");
     try {
       const result = await apiUpload(file, "general");
-      onFieldChange("url", result.url);
-      onFieldChange("fileSize", formatFileSize(file.size));
+      handleFieldChange("url", result.url);
+      handleFieldChange("fileSize", formatFileSize(file.size));
       if (!formData.name) {
-        onFieldChange("name", file.name);
+        handleFieldChange("name", file.name);
       }
-      onFieldChange("mediaType", guessMediaType(file));
+      handleFieldChange("mediaType", guessMediaType(file));
     } catch (err: any) {
       setUploadError(err?.message || "Upload failed");
     } finally {
@@ -80,16 +85,43 @@ const MediaModal: React.FC<MediaModalProps> = ({
     }
   };
 
-  return (
-    <div className="modal-overlay">
-      <div className="modal">
-        <div className="modal-header">
-          <h2>{editing ? "Edit Media" : "Add Media"}</h2>
-          <button className="icon-btn" onClick={onClose}>
-            <X size={18} />
-          </button>
-        </div>
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setError("");
 
+    const { _id, ...payload } = formData;
+
+    try {
+      if (isEditing && _id) {
+        await apiFetch(`/api/v1/media/${_id}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await apiFetch("/api/v1/media", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+      }
+      navigate("/media");
+    } catch (err: any) {
+      setError(err.message || "Failed to save Media");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="dashboard-area">
+      <FormPageHeader
+        icon={FileText}
+        title={isEditing ? "Edit Media" : "Upload Media"}
+        subtitle="Manage uploaded media files across the application."
+        onBack={() => navigate("/media")}
+      />
+
+      <div className="card">
         {error && (
           <div style={{ background: "rgba(255, 61, 0, 0.1)", color: "#ff3d00", padding: "10px 12px", borderRadius: "8px", marginBottom: "12px", fontSize: 13 }}>
             {error}
@@ -175,12 +207,12 @@ const MediaModal: React.FC<MediaModalProps> = ({
           </div>
 
           <div className="modal-actions">
-            <button type="button" className="btn-danger" onClick={onClose}>
+            <button type="button" className="btn-danger" onClick={() => navigate("/media")}>
               Cancel
             </button>
 
             <button type="submit" className="btn-primary" disabled={submitting || uploading || !formData.url}>
-              {submitting ? "Saving..." : editing ? "Update Media" : "Add Media"}
+              {submitting ? "Saving..." : isEditing ? "Update Media" : "Add Media"}
             </button>
           </div>
         </form>
@@ -189,4 +221,4 @@ const MediaModal: React.FC<MediaModalProps> = ({
   );
 };
 
-export default MediaModal;
+export default MediaForm;

@@ -1,15 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { Plus, Filter, Ban, Trash2, Loader2, ArrowLeft } from "lucide-react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import type { ColumnDef } from "@tanstack/react-table";
 import DataTable from "../components/DataTable";
 import DeleteConfirmModal from "./modals/DeleteConfirmModal";
-import IssueCertificateModal from "./modals/IssueCertificateModal";
-import type {
-  IssueCertificateFormData,
-  MitraOption,
-  TemplateOption,
-} from "./modals/IssueCertificateModal";
 import { apiFetch } from "../utils/apiConfig";
 
 interface IssuedCertificate {
@@ -29,21 +23,11 @@ interface IssuedCertificate {
 
 export const IssuedCertificatesView = () => {
   const navigate = useNavigate();
-  const location = useLocation();
-
-  const prefill = location.state as
-    | { mitra?: { mitraId: string; name: string; mobile: string }; template?: { _id: string } }
-    | undefined;
 
   const [certificates, setCertificates] = useState<IssuedCertificate[]>([]);
-  const [mitras, setMitras] = useState<MitraOption[]>([]);
-  const [templates, setTemplates] = useState<TemplateOption[]>([]);
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
 
-  const [showIssueModal, setShowIssueModal] = useState(!!prefill);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [certToDelete, setCertToDelete] = useState<IssuedCertificate | null>(null);
 
@@ -51,14 +35,8 @@ export const IssuedCertificatesView = () => {
     setLoading(true);
     setError("");
     try {
-      const [certs, mitraList, templateList] = await Promise.all([
-        apiFetch<IssuedCertificate[]>("/api/v1/certificates"),
-        apiFetch<MitraOption[]>("/api/v1/mitras?status=Approved"),
-        apiFetch<TemplateOption[]>("/api/v1/certificates/templates"),
-      ]);
+      const certs = await apiFetch<IssuedCertificate[]>("/api/v1/certificates");
       setCertificates(certs || []);
-      setMitras(mitraList || []);
-      setTemplates((templateList || []).filter((t: any) => t.status !== "Inactive"));
     } catch (err: any) {
       setError(err.message || "Failed to load issued certificates");
     } finally {
@@ -69,42 +47,6 @@ export const IssuedCertificatesView = () => {
   useEffect(() => {
     loadAll();
   }, []);
-
-  const handleIssue = async (data: IssueCertificateFormData) => {
-    setSubmitting(true);
-    setError("");
-    setSuccess("");
-
-    try {
-      const payload: Record<string, unknown> = {
-        templateId: data.templateId,
-        recipientType: data.recipientType,
-        recipientId: data.recipientId,
-        title: data.title,
-        description: data.description || undefined,
-        eventName: data.eventName || undefined,
-        issueDate: data.issueDate ? new Date(data.issueDate).toISOString() : undefined,
-      };
-      if (data.recipientType === "USER") {
-        payload.recipientName = data.recipientName;
-      }
-
-      const created = await apiFetch<IssuedCertificate>("/api/v1/certificates", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-
-      setShowIssueModal(false);
-      setSuccess(
-        `Certificate ${created.certificateNumber} issued successfully to ${created.recipientName}.`
-      );
-      await loadAll();
-    } catch (err: any) {
-      setError(err.message || "Failed to issue certificate");
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   const handleRevoke = async (cert: IssuedCertificate) => {
     try {
@@ -207,7 +149,7 @@ export const IssuedCertificatesView = () => {
             <button className="icon-btn" title="Filter">
               <Filter size={18} />
             </button>
-            <button className="btn-primary" onClick={() => setShowIssueModal(true)}>
+            <button className="btn-primary" onClick={() => navigate("/certificates/issue")}>
               <Plus size={18} />
               Issue Certificate
             </button>
@@ -217,12 +159,6 @@ export const IssuedCertificatesView = () => {
         {error && (
           <div style={{ background: 'rgba(255, 61, 0, 0.1)', color: '#ff3d00', padding: '12px', borderRadius: '8px', marginBottom: '16px' }}>
             {error}
-          </div>
-        )}
-
-        {success && (
-          <div style={{ background: 'rgba(46, 204, 113, 0.1)', color: '#2ecc71', padding: '12px', borderRadius: '8px', marginBottom: '16px' }}>
-            {success}
           </div>
         )}
 
@@ -240,19 +176,6 @@ export const IssuedCertificatesView = () => {
           )}
         </div>
       </div>
-
-      <IssueCertificateModal
-        isOpen={showIssueModal}
-        onClose={() => setShowIssueModal(false)}
-        mitras={mitras}
-        templates={templates}
-        submitting={submitting}
-        initialData={{
-          recipientId: prefill?.mitra?.mitraId,
-          templateId: prefill?.template?._id,
-        }}
-        onSubmit={handleIssue}
-      />
 
       <DeleteConfirmModal
         isOpen={showDeleteModal}

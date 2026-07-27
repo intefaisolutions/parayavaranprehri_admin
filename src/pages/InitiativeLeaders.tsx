@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Plus, Filter, Edit, Trash2, Loader2, Users } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import DataTable from "../components/DataTable";
-import LeaderModal from "./modals/LeaderModal";
-import type { LeaderFormData } from "./modals/LeaderModal";
 import DeleteConfirmModal from "./modals/DeleteConfirmModal";
 import { apiFetch } from "../utils/apiConfig";
 
@@ -18,24 +17,11 @@ interface Leader {
   updatedAt?: string;
 }
 
-const initialForm: LeaderFormData = {
-  leaderName: "",
-  designation: "",
-  organization: "",
-  photo: "",
-  displayOrder: 0,
-  isActive: true,
-};
-
 export const LeadersView = () => {
+  const navigate = useNavigate();
   const [leaders, setLeaders] = useState<Leader[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-
-  const [showModal, setShowModal] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [formData, setFormData] = useState<LeaderFormData>(initialForm);
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [leaderToDelete, setLeaderToDelete] = useState<Leader | null>(null);
@@ -58,62 +44,6 @@ export const LeadersView = () => {
   useEffect(() => {
     loadLeaders();
   }, []);
-
-  const handleFieldChange = (name: string, value: any) => {
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
-    setError("");
-
-    const { _id, ...rest } = formData;
-    const payload = {
-      ...rest,
-      displayOrder: rest.displayOrder === "" ? undefined : Number(rest.displayOrder),
-    };
-
-    try {
-      if (editing && _id) {
-        await apiFetch(`/api/v1/leaders/${_id}`, {
-          method: "PATCH",
-          body: JSON.stringify(payload),
-        });
-      } else {
-        await apiFetch("/api/v1/leaders", {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
-      }
-      setShowModal(false);
-      await loadLeaders();
-    } catch (err: any) {
-      setError(err.message || "Failed to save Initiative Leader");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const openAddModal = () => {
-    setEditing(false);
-    setFormData(initialForm);
-    setShowModal(true);
-  };
-
-  const openEditModal = (leader: Leader) => {
-    setEditing(true);
-    setFormData({
-      _id: leader._id,
-      leaderName: leader.leaderName,
-      designation: leader.designation,
-      organization: leader.organization || "",
-      photo: leader.photo || "",
-      displayOrder: leader.displayOrder ?? 0,
-      isActive: leader.isActive,
-    });
-    setShowModal(true);
-  };
 
   const openDeleteModal = (leader: Leader) => {
     setLeaderToDelete(leader);
@@ -191,7 +121,7 @@ export const LeadersView = () => {
       header: "Actions",
       cell: ({ row }) => (
         <div style={{ display: "flex", gap: "8px" }}>
-          <button className="icon-btn" style={{ width: 28, height: 28 }} onClick={() => openEditModal(row.original)}>
+          <button className="icon-btn" style={{ width: 28, height: 28 }} onClick={() => navigate("/leaders/edit", { state: { leader: row.original } })}>
             <Edit size={14} />
           </button>
           <button className="icon-btn" style={{ width: 28, height: 28 }} onClick={() => openDeleteModal(row.original)}>
@@ -215,7 +145,7 @@ export const LeadersView = () => {
             <button className="icon-btn" title="Filter">
               <Filter size={18} />
             </button>
-            <button className="btn-primary" onClick={openAddModal}>
+            <button className="btn-primary" onClick={() => navigate("/leaders/add")}>
               <Plus size={18} />
               Add Leader
             </button>
@@ -251,7 +181,7 @@ export const LeadersView = () => {
                   Add the first leader to showcase them on the platform.
                 </p>
               </div>
-              <button className="btn-primary" onClick={openAddModal}>
+              <button className="btn-primary" onClick={() => navigate("/leaders/add")}>
                 <Plus size={18} />
                 Add First Leader
               </button>
@@ -265,16 +195,6 @@ export const LeadersView = () => {
           )}
         </div>
       </div>
-
-      <LeaderModal
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
-        editing={editing}
-        formData={formData}
-        submitting={submitting}
-        onFieldChange={handleFieldChange}
-        handleSubmit={handleSubmit}
-      />
 
       <DeleteConfirmModal
         isOpen={showDeleteModal}

@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Plus, Filter, Edit, Trash2, Eye, Loader2 } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import DataTable from "../components/DataTable";
-import LocationMasterModal from "./modals/LocationMasterModal";
-import type { LocationFormData } from "./modals/LocationMasterModal";
 import DeleteConfirmModal from "./modals/DeleteConfirmModal";
 import { apiFetch } from "../utils/apiConfig";
 
@@ -19,25 +18,11 @@ interface Location {
   createdAt?: string;
 }
 
-const initialForm: LocationFormData = {
-  locationName: "",
-  locationType: "State",
-  parentLocation: "",
-  latitude: "",
-  longitude: "",
-  totalLinkedRecords: "",
-  status: "Active",
-};
-
 export const LocationView = () => {
+  const navigate = useNavigate();
   const [locations, setLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-
-  const [showModal, setShowModal] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [formData, setFormData] = useState<LocationFormData>(initialForm);
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [locationToDelete, setLocationToDelete] = useState<Location | null>(null);
@@ -59,70 +44,8 @@ export const LocationView = () => {
     loadLocations();
   }, []);
 
-  const handleFieldChange = (name: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
-    setError("");
-
-    const { _id, ...rest } = formData;
-    const payload = {
-      ...rest,
-      latitude: rest.latitude === "" ? undefined : Number(rest.latitude),
-      longitude: rest.longitude === "" ? undefined : Number(rest.longitude),
-      totalLinkedRecords:
-        rest.totalLinkedRecords === "" ? undefined : Number(rest.totalLinkedRecords),
-    };
-
-    try {
-      if (editing && _id) {
-        await apiFetch(`/api/v1/locations/${_id}`, {
-          method: "PATCH",
-          body: JSON.stringify(payload),
-        });
-      } else {
-        await apiFetch("/api/v1/locations", {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
-      }
-      setShowModal(false);
-      await loadLocations();
-    } catch (err: any) {
-      setError(err.message || "Failed to save location");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const openAddModal = () => {
-    setEditing(false);
-    setError("");
-    setFormData(initialForm);
-    setShowModal(true);
-  };
-
-  const openEditModal = (location: Location) => {
-    setEditing(true);
-    setError("");
-    setFormData({
-      _id: location._id,
-      locationName: location.locationName,
-      locationType: location.locationType,
-      parentLocation: location.parentLocation || "",
-      latitude: location.latitude !== undefined ? String(location.latitude) : "",
-      longitude: location.longitude !== undefined ? String(location.longitude) : "",
-      totalLinkedRecords: String(location.totalLinkedRecords ?? 0),
-      status: location.status,
-    });
-    setShowModal(true);
-  };
-
-  const openDeleteModal = (location: Location) => {
-    setLocationToDelete(location);
+  const openDeleteModal = (loc: Location) => {
+    setLocationToDelete(loc);
     setShowDeleteModal(true);
   };
 
@@ -202,7 +125,7 @@ export const LocationView = () => {
           <button
             className="icon-btn"
             style={{ width: 28, height: 28 }}
-            onClick={() => openEditModal(row.original)}
+            onClick={() => navigate("/location/edit", { state: { location: row.original } })}
           >
             <Edit size={14} />
           </button>
@@ -234,7 +157,7 @@ export const LocationView = () => {
               <Filter size={18} />
             </button>
 
-            <button className="btn-primary" onClick={openAddModal}>
+            <button className="btn-primary" onClick={() => navigate("/location/add")}>
               <Plus size={18} />
               Add Location
             </button>
@@ -269,17 +192,6 @@ export const LocationView = () => {
           )}
         </div>
       </div>
-
-      <LocationMasterModal
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
-        editing={editing}
-        formData={formData}
-        submitting={submitting}
-        error={error}
-        onFieldChange={handleFieldChange}
-        handleSubmit={handleSubmit}
-      />
 
       <DeleteConfirmModal
         isOpen={showDeleteModal}

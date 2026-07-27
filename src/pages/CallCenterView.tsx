@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Plus, Filter, Edit, Trash2, Loader2, Phone } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import DataTable from "../components/DataTable";
-import CallCenterModal from "./modals/CallCenterModal";
-import type { CallCenterFormData } from "./modals/CallCenterModal";
 import DeleteConfirmModal from "./modals/DeleteConfirmModal";
 import { apiFetch } from "../utils/apiConfig";
 
@@ -17,23 +16,11 @@ interface CallCenterContact {
   status: string;
 }
 
-const initialForm: CallCenterFormData = {
-  contactType: "Phone",
-  contactValue: "",
-  availableHours: "",
-  assignedPerson: "",
-  status: "Active",
-};
-
 export const CallCenterView = () => {
+  const navigate = useNavigate();
   const [callCenterList, setCallCenterList] = useState<CallCenterContact[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-
-  const [showModal, setShowModal] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [formData, setFormData] = useState<CallCenterFormData>(initialForm);
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [callToDelete, setCallToDelete] = useState<CallCenterContact | null>(null);
@@ -54,57 +41,6 @@ export const CallCenterView = () => {
   useEffect(() => {
     loadContacts();
   }, []);
-
-  const handleFieldChange = (name: string, value: any) => {
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
-    setError("");
-
-    const { _id, ...payload } = formData;
-
-    try {
-      if (editing && _id) {
-        await apiFetch(`/api/v1/call-center/${_id}`, {
-          method: "PATCH",
-          body: JSON.stringify(payload),
-        });
-      } else {
-        await apiFetch("/api/v1/call-center", {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
-      }
-      setShowModal(false);
-      await loadContacts();
-    } catch (err: any) {
-      setError(err.message || "Failed to save contact");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const openAddModal = () => {
-    setEditing(false);
-    setFormData(initialForm);
-    setShowModal(true);
-  };
-
-  const openEditModal = (contact: CallCenterContact) => {
-    setEditing(true);
-    setFormData({
-      _id: contact._id,
-      contactType: contact.contactType,
-      contactValue: contact.contactValue,
-      availableHours: contact.availableHours || "",
-      assignedPerson: contact.assignedPerson || "",
-      status: contact.status,
-    });
-    setShowModal(true);
-  };
 
   const openDeleteModal = (contact: CallCenterContact) => {
     setCallToDelete(contact);
@@ -152,7 +88,7 @@ export const CallCenterView = () => {
       enableSorting: false,
       cell: ({ row }) => (
         <div style={{ display: "flex", gap: "8px" }}>
-          <button className="icon-btn" style={{ width: 28, height: 28 }} onClick={() => openEditModal(row.original)}>
+          <button className="icon-btn" style={{ width: 28, height: 28 }} onClick={() => navigate("/callcenter/edit", { state: { contact: row.original } })}>
             <Edit size={14} />
           </button>
           <button className="icon-btn" style={{ width: 28, height: 28 }} onClick={() => openDeleteModal(row.original)}>
@@ -176,7 +112,7 @@ export const CallCenterView = () => {
             <button className="icon-btn" title="Filter">
               <Filter size={18} />
             </button>
-            <button className="btn-primary" onClick={openAddModal}>
+            <button className="btn-primary" onClick={() => navigate("/callcenter/add")}>
               <Plus size={18} />
               Add Contact
             </button>
@@ -223,7 +159,7 @@ export const CallCenterView = () => {
               <p style={{ color: "var(--text-secondary)", marginBottom: 20 }}>
                 Add your first helpline, WhatsApp or email contact channel.
               </p>
-              <button className="btn-primary" onClick={openAddModal}>
+              <button className="btn-primary" onClick={() => navigate("/callcenter/add")}>
                 <Plus size={18} />
                 Add First Contact
               </button>
@@ -237,16 +173,6 @@ export const CallCenterView = () => {
           )}
         </div>
       </div>
-
-      <CallCenterModal
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
-        editing={editing}
-        formData={formData}
-        submitting={submitting}
-        onFieldChange={handleFieldChange}
-        handleSubmit={handleSubmit}
-      />
 
       <DeleteConfirmModal
         isOpen={showDeleteModal}

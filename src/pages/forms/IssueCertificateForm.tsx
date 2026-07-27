@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { X, Users, Award, FileText, CalendarDays, Sparkles } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { Award, Users, FileText, CalendarDays, Sparkles } from "lucide-react";
+import { apiFetch } from "../../utils/apiConfig";
 import { SmartForm } from "../../components/form/SmartForm";
 import type { FormSectionConfig } from "../../components/form/SmartForm";
+import { FormPageHeader } from "../../components/form/FormPageHeader";
 
 export interface MitraOption {
   mitraId: string;
@@ -26,16 +29,6 @@ export interface IssueCertificateFormData {
   issueDate: string;
 }
 
-interface IssueCertificateModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  mitras: MitraOption[];
-  templates: TemplateOption[];
-  submitting?: boolean;
-  initialData?: Partial<IssueCertificateFormData>;
-  onSubmit: (data: IssueCertificateFormData) => void;
-}
-
 const emptyForm: IssueCertificateFormData = {
   recipientType: "MITRA",
   recipientId: "",
@@ -47,36 +40,70 @@ const emptyForm: IssueCertificateFormData = {
   issueDate: new Date().toISOString().slice(0, 10),
 };
 
-const IssueCertificateModal: React.FC<IssueCertificateModalProps> = ({
-  isOpen,
-  onClose,
-  mitras,
-  templates,
-  submitting,
-  initialData,
-  onSubmit,
-}) => {
+export const IssueCertificateForm = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const prefill = location.state as
+    | { mitra?: { mitraId: string; name: string; mobile: string }; template?: { _id: string } }
+    | undefined;
+
   const [formData, setFormData] = useState<IssueCertificateFormData>({
     ...emptyForm,
-    ...initialData,
+    recipientId: prefill?.mitra?.mitraId || "",
+    templateId: prefill?.template?._id || "",
   });
 
+  const [mitras, setMitras] = useState<MitraOption[]>([]);
+  const [templates, setTemplates] = useState<TemplateOption[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
   useEffect(() => {
-    if (isOpen) {
-      setFormData({ ...emptyForm, ...initialData });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, initialData]);
+    Promise.all([
+      apiFetch<MitraOption[]>("/api/v1/mitras?status=Approved"),
+      apiFetch<TemplateOption[]>("/api/v1/certificates/templates"),
+    ])
+      .then(([mitraList, templateList]) => {
+        setMitras(mitraList || []);
+        setTemplates((templateList || []).filter((t: any) => t.status !== "Inactive"));
+      })
+      .catch((err: any) => setError(err.message || "Failed to load certificate data"));
+  }, []);
 
-  if (!isOpen) return null;
-
-  const handleFieldChange = (name: string, value: string) => {
+  const handleFieldChange = (name: string, value: any) => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(formData);
+    setSubmitting(true);
+    setError("");
+
+    try {
+      const payload: Record<string, unknown> = {
+        templateId: formData.templateId,
+        recipientType: formData.recipientType,
+        recipientId: formData.recipientId,
+        title: formData.title,
+        description: formData.description || undefined,
+        eventName: formData.eventName || undefined,
+        issueDate: formData.issueDate ? new Date(formData.issueDate).toISOString() : undefined,
+      };
+      if (formData.recipientType === "USER") {
+        payload.recipientName = formData.recipientName;
+      }
+
+      await apiFetch("/api/v1/certificates", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      navigate("/certificates/issued");
+    } catch (err: any) {
+      setError(err.message || "Failed to issue certificate");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const sections: FormSectionConfig[] = [
@@ -163,28 +190,29 @@ const IssueCertificateModal: React.FC<IssueCertificateModalProps> = ({
   ];
 
   return (
-    <div className="modal-overlay">
-      <div className="modal" style={{ width: 640 }}>
-        <div className="modal-header">
-          <h2>Issue Certificate</h2>
-          <button className="icon-btn" onClick={onClose}>
-            <X size={18} />
-          </button>
-        </div>
+    <div className="dashboard-area">
+      <FormPageHeader
+        icon={Award}
+        title="Issue Certificate"
+        subtitle="Issue a certificate to a Paryavaran Mitra (volunteer) or other user."
+        onBack={() => navigate("/certificates/issued")}
+      />
 
+      <div className="card">
         <SmartForm
           sections={sections}
           formData={formData}
           onFieldChange={handleFieldChange}
           onSubmit={handleSubmit}
           submitting={submitting}
+          error={error}
           submitLabel="Issue Certificate"
           cancelLabel="Cancel"
-          onCancel={onClose}
+          onCancel={() => navigate("/certificates/issued")}
         />
       </div>
     </div>
   );
 };
 
-export default IssueCertificateModal;
+export default IssueCertificateForm;

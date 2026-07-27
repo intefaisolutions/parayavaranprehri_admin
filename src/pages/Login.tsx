@@ -143,6 +143,18 @@ export const LoginView = ({ onLogin }: { onLogin: () => void }) => {
     await verifyOtp(otp);
   };
 
+  // Auto-submit as soon as all 4 digits are present — covers manual typing,
+  // pasting, and browser/SMS autofill alike (not just the OtpInput
+  // `onComplete` callback, which some autofill paths can bypass). Re-fires
+  // whenever `otp` changes to a fresh 4-digit value, so retrying after a
+  // failed attempt still auto-verifies.
+  useEffect(() => {
+    if (mode === 'OTP' && step === 'OTP' && otp.length === 4 && !loading) {
+      verifyOtp(otp);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [otp, step, mode]);
+
   const switchMode = (next: LoginMode) => {
     setMode(next);
     setError('');
@@ -258,7 +270,6 @@ export const LoginView = ({ onLogin }: { onLogin: () => void }) => {
               <OtpInput
                 value={otp}
                 onChange={setOtp}
-                onComplete={(code) => verifyOtp(code)}
                 disabled={loading}
               />
               <div className="otp-meta-row">

@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Plus, Filter, Edit, Trash2, Loader2, Languages as LanguagesIcon, ToggleLeft, ToggleRight } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import DataTable from "../components/DataTable";
-import LanguageModal from "./modals/LanguageModal";
-import type { LanguageFormData } from "./modals/LanguageModal";
 import DeleteConfirmModal from "./modals/DeleteConfirmModal";
 import { apiFetch } from "../utils/apiConfig";
 
@@ -17,13 +16,6 @@ interface Language {
   updatedAt?: string;
 }
 
-const initialForm: LanguageFormData = {
-  languageName: "",
-  languageCode: "",
-  translationProgress: 0,
-  status: "Active",
-};
-
 const formatDate = (value?: string) => {
   if (!value) return "-";
   const date = new Date(value);
@@ -32,14 +24,10 @@ const formatDate = (value?: string) => {
 };
 
 export const LanguagesView = () => {
+  const navigate = useNavigate();
   const [languageList, setLanguageList] = useState<Language[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-
-  const [showModal, setShowModal] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [formData, setFormData] = useState<LanguageFormData>(initialForm);
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [languageToDelete, setLanguageToDelete] = useState<Language | null>(null);
@@ -61,61 +49,6 @@ export const LanguagesView = () => {
   useEffect(() => {
     loadLanguages();
   }, []);
-
-  const handleFieldChange = (name: string, value: any) => {
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
-    setError("");
-
-    const { _id, ...payload } = formData;
-    const body = {
-      ...payload,
-      translationProgress:
-        payload.translationProgress === "" ? 0 : Number(payload.translationProgress),
-    };
-
-    try {
-      if (editing && _id) {
-        await apiFetch(`/api/v1/languages/${_id}`, {
-          method: "PATCH",
-          body: JSON.stringify(body),
-        });
-      } else {
-        await apiFetch("/api/v1/languages", {
-          method: "POST",
-          body: JSON.stringify(body),
-        });
-      }
-      setShowModal(false);
-      await loadLanguages();
-    } catch (err: any) {
-      setError(err.message || "Failed to save Language");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const openAddModal = () => {
-    setEditing(false);
-    setFormData(initialForm);
-    setShowModal(true);
-  };
-
-  const openEditModal = (language: Language) => {
-    setEditing(true);
-    setFormData({
-      _id: language._id,
-      languageName: language.languageName,
-      languageCode: language.languageCode,
-      translationProgress: language.translationProgress,
-      status: language.status,
-    });
-    setShowModal(true);
-  };
 
   const openDeleteModal = (language: Language) => {
     setLanguageToDelete(language);
@@ -209,7 +142,7 @@ export const LanguagesView = () => {
       header: "Actions",
       cell: ({ row }) => (
         <div style={{ display: "flex", gap: "8px" }}>
-          <button className="icon-btn" onClick={() => openEditModal(row.original)}>
+          <button className="icon-btn" onClick={() => navigate("/languages/edit", { state: { language: row.original } })}>
             <Edit size={14} />
           </button>
 
@@ -235,7 +168,7 @@ export const LanguagesView = () => {
               <Filter size={18} />
             </button>
 
-            <button className="btn-primary" onClick={openAddModal}>
+            <button className="btn-primary" onClick={() => navigate("/languages/add")}>
               <Plus size={18} />
               Add Language
             </button>
@@ -260,7 +193,7 @@ export const LanguagesView = () => {
               <p style={{ margin: 0, color: "var(--text-secondary)" }}>
                 Add your first language to start managing translations.
               </p>
-              <button className="btn-primary" onClick={openAddModal}>
+              <button className="btn-primary" onClick={() => navigate("/languages/add")}>
                 <Plus size={16} />
                 Add first language
               </button>
@@ -274,17 +207,6 @@ export const LanguagesView = () => {
           )}
         </div>
       </div>
-
-      <LanguageModal
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
-        editing={editing}
-        formData={formData}
-        submitting={submitting}
-        error={error}
-        onFieldChange={handleFieldChange}
-        handleSubmit={handleSubmit}
-      />
 
       <DeleteConfirmModal
         isOpen={showDeleteModal}

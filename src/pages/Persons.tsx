@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Users, Plus, Filter, Edit, Trash2, Loader2 } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import DataTable from "../components/DataTable";
-import PersonModal from "./modals/PersonModal";
-import type { PersonFormData } from "./modals/PersonModal";
 import DeleteConfirmModal from "./modals/DeleteConfirmModal";
 import { apiFetch } from "../utils/apiConfig";
 
@@ -30,38 +29,11 @@ interface Person {
   registrationDate?: string;
 }
 
-const initialForm: PersonFormData = {
-  name: "",
-  mobile: "",
-  email: "",
-  dob: "",
-  gender: "",
-  address: "",
-  city: "",
-  state: "",
-  pincode: "",
-  idProofType: "",
-  idProofNumber: "",
-  photo: "",
-  vehiclesLinked: "",
-  treesAssigned: "",
-  status: "Active",
-  registrationDate: "",
-};
-
-/** Converts an ISO datetime string coming from the API into a plain
- * yyyy-MM-dd value that native <input type="date"> controls expect. */
-const toDateInputValue = (value?: string) => (value ? value.slice(0, 10) : "");
-
 export const PersonsView = () => {
+  const navigate = useNavigate();
   const [persons, setPersons] = useState<Person[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-
-  const [showModal, setShowModal] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [formData, setFormData] = useState<PersonFormData>(initialForm);
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [personToDelete, setPersonToDelete] = useState<Person | null>(null);
@@ -82,78 +54,6 @@ export const PersonsView = () => {
   useEffect(() => {
     loadPersons();
   }, []);
-
-  const handleFieldChange = (name: string, value: any) => {
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
-    setError("");
-
-    const { _id, personId: _personId, ...rest } = formData;
-    const payload: Record<string, any> = {};
-    Object.entries(rest).forEach(([key, value]) => {
-      if (value === "" || value === undefined || value === null) return;
-      if (key === "vehiclesLinked" || key === "treesAssigned") {
-        payload[key] = Number(value);
-      } else {
-        payload[key] = value;
-      }
-    });
-
-    try {
-      if (editing && _id) {
-        await apiFetch(`/api/v1/persons/${_id}`, {
-          method: "PATCH",
-          body: JSON.stringify(payload),
-        });
-      } else {
-        await apiFetch("/api/v1/persons", {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
-      }
-      setShowModal(false);
-      await loadPersons();
-    } catch (err: any) {
-      setError(err.message || "Failed to save Person");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const openAddModal = () => {
-    setEditing(false);
-    setFormData(initialForm);
-    setShowModal(true);
-  };
-
-  const openEditModal = (person: Person) => {
-    setEditing(true);
-    setFormData({
-      _id: person._id,
-      personId: person.personId,
-      name: person.name,
-      mobile: person.mobile,
-      email: person.email || "",
-      dob: toDateInputValue(person.dob),
-      gender: person.gender || "",
-      address: person.address || "",
-      city: person.city || "",
-      state: person.state || "",
-      pincode: person.pincode || "",
-      idProofType: person.idProofType || "",
-      idProofNumber: person.idProofNumber || "",
-      photo: person.photo || "",
-      vehiclesLinked: person.vehiclesLinked ?? "",
-      treesAssigned: person.treesAssigned ?? "",
-      status: person.status,
-      registrationDate: toDateInputValue(person.registrationDate),
-    });
-    setShowModal(true);
-  };
 
   const openDeleteModal = (person: Person) => {
     setPersonToDelete(person);
@@ -216,7 +116,7 @@ export const PersonsView = () => {
       header: "Actions",
       cell: ({ row }) => (
         <div style={{ display: "flex", gap: "8px" }}>
-          <button className="icon-btn" style={{ width: 28, height: 28 }} onClick={() => openEditModal(row.original)}>
+          <button className="icon-btn" style={{ width: 28, height: 28 }} onClick={() => navigate("/persons/edit", { state: { person: row.original } })}>
             <Edit size={14} />
           </button>
           <button className="icon-btn" style={{ width: 28, height: 28 }} onClick={() => openDeleteModal(row.original)}>
@@ -240,7 +140,7 @@ export const PersonsView = () => {
             <button className="icon-btn" title="Filter">
               <Filter size={18} />
             </button>
-            <button className="btn-primary" onClick={openAddModal}>
+            <button className="btn-primary" onClick={() => navigate("/persons/add")}>
               <Plus size={18} />
               Add Person
             </button>
@@ -271,7 +171,7 @@ export const PersonsView = () => {
             >
               <Users size={28} />
               <p>No persons registered yet.</p>
-              <button className="btn-primary" onClick={openAddModal}>
+              <button className="btn-primary" onClick={() => navigate("/persons/add")}>
                 <Plus size={16} />
                 Add the first one
               </button>
@@ -281,16 +181,6 @@ export const PersonsView = () => {
           )}
         </div>
       </div>
-
-      <PersonModal
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
-        editing={editing}
-        formData={formData}
-        submitting={submitting}
-        onFieldChange={handleFieldChange}
-        handleSubmit={handleSubmit}
-      />
 
       <DeleteConfirmModal
         isOpen={showDeleteModal}
