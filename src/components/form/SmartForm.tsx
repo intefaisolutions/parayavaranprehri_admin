@@ -40,6 +40,10 @@ export interface FieldConfig {
   optionsFor?: (formData: Record<string, any>) => SelectOption[];
   rows?: number;
   span?: 1 | 2;
+  /** For date/number inputs — HTML min attribute (e.g. "1900-01-01"). */
+  min?: string | number;
+  /** For date/number inputs — HTML max attribute (e.g. today's date). */
+  max?: string | number;
   /** S3 folder category used when this field uploads a file (image/gallery types). */
   uploadCategory?: UploadCategory;
   /** Only rendered when this returns true (or is omitted). Useful for conditional fields. */
@@ -73,6 +77,8 @@ const SmartField: React.FC<SmartFieldProps> = ({ field, value, onChange }) => {
     helpText,
     options,
     rows = 3,
+    min,
+    max,
     uploadCategory = "general",
   } = field;
 
@@ -268,6 +274,9 @@ const SmartField: React.FC<SmartFieldProps> = ({ field, value, onChange }) => {
         onChange={handle}
         placeholder={placeholder}
         disabled={disabled}
+        required={required}
+        min={min}
+        max={max}
       />
     );
   })();

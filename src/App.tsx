@@ -102,6 +102,7 @@ function App() {
           <Route path="/persons" element={<PersonsView />} />
           <Route path="/persons/add" element={<PersonForm />} />
           <Route path="/persons/edit" element={<PersonForm />} />
+          <Route path="/persons/view" element={<PersonForm />} />
           <Route path="/vehicles" element={<VehiclesView />} />
           <Route path="/vehicles/add" element={<VehicleForm />} />
           <Route path="/vehicles/edit" element={<VehicleForm />} />

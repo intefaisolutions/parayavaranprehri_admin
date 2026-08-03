@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users, Plus, Filter, Edit, Trash2, Loader2 } from "lucide-react";
+import { Users, Plus, Filter, Edit, Trash2, Loader2, Eye } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import DataTable from "../components/DataTable";
 import DeleteConfirmModal from "./modals/DeleteConfirmModal";
@@ -27,6 +27,9 @@ interface Person {
   source?: string;
   insuranceVerified?: boolean;
   registrationDate?: string;
+  lastLoginAt?: string | null;
+  createdBy?: string;
+  updatedBy?: string;
 }
 
 export const PersonsView = () => {
@@ -113,13 +116,56 @@ export const PersonsView = () => {
       enableSorting: false,
     },
     {
+      accessorKey: "lastLoginAt",
+      header: "Last Login",
+      cell: ({ row }) =>
+        row.original.lastLoginAt
+          ? new Date(row.original.lastLoginAt).toLocaleString()
+          : "—",
+      enableSorting: true,
+    },
+    {
+      accessorKey: "createdBy",
+      header: "Created By",
+      cell: ({ row }) => row.original.createdBy || "—",
+      enableSorting: true,
+    },
+    {
+      accessorKey: "updatedBy",
+      header: "Updated By",
+      cell: ({ row }) => row.original.updatedBy || "—",
+      enableSorting: true,
+    },
+    {
       header: "Actions",
       cell: ({ row }) => (
         <div style={{ display: "flex", gap: "8px" }}>
-          <button className="icon-btn" style={{ width: 28, height: 28 }} onClick={() => navigate("/persons/edit", { state: { person: row.original } })}>
+          <button
+            className="icon-btn"
+            style={{ width: 28, height: 28 }}
+            title="View"
+            onClick={() =>
+              navigate("/persons/view", { state: { person: row.original } })
+            }
+          >
+            <Eye size={14} />
+          </button>
+          <button
+            className="icon-btn"
+            style={{ width: 28, height: 28 }}
+            title="Edit"
+            onClick={() =>
+              navigate("/persons/edit", { state: { person: row.original } })
+            }
+          >
             <Edit size={14} />
           </button>
-          <button className="icon-btn" style={{ width: 28, height: 28 }} onClick={() => openDeleteModal(row.original)}>
+          <button
+            className="icon-btn"
+            style={{ width: 28, height: 28 }}
+            title="Delete"
+            onClick={() => openDeleteModal(row.original)}
+          >
             <Trash2 size={14} />
           </button>
         </div>

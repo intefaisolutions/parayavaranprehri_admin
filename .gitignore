@@ -12,10 +12,14 @@ dist
 dist-ssr
 *.local
 
-# Environment & secrets (never commit)
+# Environment & secrets (never commit local overrides)
 .env
-.env.*
+.env.local
+.env.*.local
 !.env.example
+# Commit shared templates; keep machine-specific .env out of git
+!.env.production
+!.env.development
 
 # Editor directories and files
 .vscode/*

@@ -1,10 +1,17 @@
+const DEFAULT_API_BASE_URL = import.meta.env.DEV
+  ? 'http://localhost:3000'
+  : 'https://paryavaranprahri.com';
+
 export const API_CONFIG = {
-  // Points at the bare server origin (no trailing /api) since every call site
-  // already passes a full "/api/v1/..." path - baseURL used to include "/api"
-  // too, which produced broken "/api/api/v1/..." URLs.
-  baseURL: import.meta.env.DEV
-    ? 'http://localhost:3000'
-    : 'https://paryavaranprahri.com',
+  // Bare server origin (no trailing /api) — call sites pass "/api/v1/...".
+  // Override with VITE_API_BASE_URL in .env / .env.production
+  baseURL: (
+    import.meta.env.VITE_API_BASE_URL as string | undefined
+  )?.replace(/\/+$/, '') || DEFAULT_API_BASE_URL,
+
+  appName:
+    (import.meta.env.VITE_APP_NAME as string | undefined) ||
+    'Paryavaran Prahri Admin',
 
   timeout: 10000,
 };
