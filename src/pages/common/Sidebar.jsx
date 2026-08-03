@@ -24,7 +24,11 @@ import {
   ShieldCheck,
   History,
   Leaf,
-  Sparkles
+  Sparkles,
+  Route,
+  CalendarDays,
+  AlertTriangle,
+  Wrench,
 } from "lucide-react";
 
 const Sidebar = () => {
@@ -38,12 +42,16 @@ const Sidebar = () => {
     { id: "identity", icon: <FileBadge size={20} />, label: "Person Identity" },
     { id: "mitras", icon: <UserCheck size={20} />, label: "Paryavaran Mitra" },
     { id: "tasks", icon: <ClipboardList size={20} />, label: "Task Management" },
+    { id: "mitra-events", icon: <CalendarDays size={20} />, label: "Mitra Events" },
+    { id: "field-issues", icon: <AlertTriangle size={20} />, label: "Field Issues" },
+    { id: "maintenance-logs", icon: <Wrench size={20} />, label: "Maintenance Logs" },
     { id: "vidhansabha", icon: <Building size={20} />, label: "Vidhan Sabha" },
     { id: "location", icon: <MapPin size={20} />, label: "Location Master" },
     { id: "map", icon: <Map size={20} />, label: "Map Management" },
     { id: "news", icon: <Newspaper size={20} />, label: "News Management" },
     { id: "media", icon: <ImageIcon size={20} />, label: "Media Management" },
     { id: "leaders", icon: <Users2 size={20} />, label: "Initiative Leaders" },
+    { id: "journey", icon: <Route size={20} />, label: "Journey & Achievements" },
     { id: "certificates", icon: <Award size={20} />, label: "Certificates" },
     { id: "certificates/issued", icon: <FileBadge size={20} />, label: "Issued Certificates" },
     { id: "rashi-trees", icon: <Sparkles size={20} />, label: "Rashi Tree Recommendations" },

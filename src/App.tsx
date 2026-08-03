@@ -62,6 +62,17 @@ import { RoleForm } from "./pages/forms/RoleForm";
 import { AuditView } from "./pages/AuditView";
 import { AuditForm } from "./pages/forms/AuditForm";
 
+import { JourneyView } from "./pages/JourneyManagement";
+import { JourneyAchievementForm } from "./pages/forms/JourneyAchievementForm";
+import { JourneyProfileForm } from "./pages/forms/JourneyProfileForm";
+import { MitraEventsView } from "./pages/MitraEvents";
+import { MitraEventForm } from "./pages/forms/MitraEventForm";
+import { MitraEventAttendanceView } from "./pages/MitraEventAttendance";
+import { FieldIssuesView } from "./pages/FieldIssues";
+import { FieldIssueStatusForm } from "./pages/forms/FieldIssueStatusForm";
+import { MaintenanceLogsView } from "./pages/MaintenanceLogs";
+import { MaintenanceLogForm } from "./pages/forms/MaintenanceLogForm";
+
 import { LoginView } from "./pages/Login";
 
 function App() {
@@ -169,6 +180,29 @@ function App() {
           <Route path="/audit" element={<AuditView />} />
           <Route path="/audit/add" element={<AuditForm />} />
           <Route path="/audit/edit" element={<AuditForm />} />
+
+          <Route path="/journey" element={<JourneyView />} />
+          <Route path="/journey/add" element={<JourneyAchievementForm />} />
+          <Route path="/journey/edit" element={<JourneyAchievementForm />} />
+          <Route path="/journey/profile" element={<JourneyProfileForm />} />
+
+          <Route path="/mitra-events" element={<MitraEventsView />} />
+          <Route path="/mitra-events/add" element={<MitraEventForm />} />
+          <Route path="/mitra-events/edit" element={<MitraEventForm />} />
+          <Route
+            path="/mitra-events/attendance"
+            element={<MitraEventAttendanceView />}
+          />
+
+          <Route path="/field-issues" element={<FieldIssuesView />} />
+          <Route path="/field-issues/edit" element={<FieldIssueStatusForm />} />
+
+          <Route path="/maintenance-logs" element={<MaintenanceLogsView />} />
+          <Route path="/maintenance-logs/add" element={<MaintenanceLogForm />} />
+          <Route
+            path="/maintenance-logs/view"
+            element={<MaintenanceLogForm />}
+          />
 
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </>
