@@ -1,37 +1,52 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Filter, Edit, Trash2, Loader2 } from "lucide-react";
+import { Car, Eye, Loader2, RefreshCw } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import DataTable from "../components/DataTable";
-import DeleteConfirmModal from "./modals/DeleteConfirmModal";
 import { apiFetch } from "../utils/apiConfig";
 
-interface Vehicle {
-  _id: string;
-  plate: string;
-  name: string;
-  vhId: string;
-  fuel: string;
-  insuranceId?: string;
-  userId?: string;
-  createdAt?: string;
+export interface LinkedVehicleRow {
+  id: string;
+  personMongoId: string;
+  personId: string;
+  personName: string;
+  mobile: string;
+  email?: string;
+  photo?: string;
+  personStatus?: string;
+  personSource?: string;
+  registrationNumber: string;
+  vehicleType?: string;
+  vehicleModel?: string;
+  isInsured: boolean;
+  policyStatus: string;
+  policyNumber?: string | null;
+  policyStartDate?: string | null;
+  policyEndDate?: string | null;
+  hasActiveInsurance: boolean;
 }
+
+const policyBadgeClass = (status?: string) => {
+  const s = (status || "").toUpperCase();
+  if (s === "ACTIVE") return "status-active";
+  if (s === "EXPIRED") return "status-warning";
+  return "status-inactive";
+};
 
 export const VehiclesView = () => {
   const navigate = useNavigate();
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [vehicles, setVehicles] = useState<LinkedVehicleRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [vehicleToDelete, setVehicleToDelete] = useState<Vehicle | null>(null);
 
   const loadVehicles = async () => {
     setLoading(true);
     setError("");
     try {
-      const data = await apiFetch<Vehicle[]>("/api/v1/vehicles");
-      setVehicles(data || []);
+      const data = await apiFetch<LinkedVehicleRow[]>(
+        "/api/v1/persons/linked-vehicles",
+      );
+      setVehicles(Array.isArray(data) ? data : []);
     } catch (err: any) {
       setError(err.message || "Failed to load vehicles");
     } finally {
@@ -43,116 +58,158 @@ export const VehiclesView = () => {
     loadVehicles();
   }, []);
 
-  const openDeleteModal = (vehicle: Vehicle) => {
-    setVehicleToDelete(vehicle);
-    setShowDeleteModal(true);
-  };
-
-  const handleDelete = async () => {
-    if (!vehicleToDelete) return;
-    try {
-      await apiFetch(`/api/v1/vehicles/${vehicleToDelete._id}`, { method: "DELETE" });
-      await loadVehicles();
-    } catch (err: any) {
-      setError(err.message || "Failed to delete vehicle");
-    } finally {
-      setVehicleToDelete(null);
-      setShowDeleteModal(false);
-    }
-  };
-
-  const columns: ColumnDef<Vehicle>[] = [
-    { accessorKey: "plate", header: "Plate Number", enableSorting: true },
-    { accessorKey: "name", header: "Vehicle Name", enableSorting: true },
-    { accessorKey: "vhId", header: "Vehicle ID", enableSorting: true },
+  const columns: ColumnDef<LinkedVehicleRow>[] = [
     {
-      accessorKey: "fuel",
-      header: "Fuel Type",
-      cell: ({ row }) => <span className="status-badge status-active">{row.original.fuel}</span>,
+      accessorKey: "registrationNumber",
+      header: "Plate Number",
       enableSorting: true,
     },
     {
-      accessorKey: "insuranceId",
-      header: "Insurance ID",
-      cell: ({ row }) => <span>{row.original.insuranceId || "-"}</span>,
+      id: "vehicle",
+      header: "Vehicle",
+      cell: ({ row }) =>
+        [row.original.vehicleType, row.original.vehicleModel]
+          .filter(Boolean)
+          .join(" · ") || "—",
+      enableSorting: false,
+    },
+    {
+      accessorKey: "personName",
+      header: "Owner (Person)",
+      cell: ({ row }) => (
+        <div>
+          <div style={{ fontWeight: 600 }}>{row.original.personName}</div>
+          <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+            {row.original.personId}
+          </div>
+        </div>
+      ),
+      enableSorting: true,
+    },
+    {
+      accessorKey: "mobile",
+      header: "Mobile",
+      enableSorting: true,
+    },
+    {
+      accessorKey: "policyStatus",
+      header: "Insurance",
+      cell: ({ row }) => (
+        <span
+          className={`status-badge ${policyBadgeClass(row.original.policyStatus)}`}
+        >
+          {row.original.policyStatus || "NOT_INSURED"}
+        </span>
+      ),
+      enableSorting: true,
+    },
+    {
+      accessorKey: "policyNumber",
+      header: "Policy No.",
+      cell: ({ row }) => row.original.policyNumber || "—",
       enableSorting: false,
     },
     {
       header: "Actions",
       cell: ({ row }) => (
-        <div style={{ display: "flex", gap: "8px" }}>
-          <button
-            className="icon-btn"
-            style={{ width: 28, height: 28 }}
-            onClick={() => navigate("/vehicles/edit", { state: { vehicle: row.original } })}
-          >
-            <Edit size={14} />
-          </button>
-          <button
-            className="icon-btn"
-            style={{ width: 28, height: 28 }}
-            onClick={() => openDeleteModal(row.original)}
-          >
-            <Trash2 size={14} />
-          </button>
-        </div>
+        <button
+          className="icon-btn"
+          style={{ width: 28, height: 28 }}
+          title="View person & vehicle"
+          onClick={() =>
+            navigate("/vehicles/view", { state: { vehicle: row.original } })
+          }
+        >
+          <Eye size={14} />
+        </button>
       ),
       enableSorting: false,
     },
   ];
 
   return (
-    <>
-      <div className="dashboard-area">
-        <div className="page-header">
-          <div className="page-title">
-            <h1>Vehicle Management</h1>
-            <p>Manage registered vehicles and their fuel & insurance details.</p>
-          </div>
-
-          <div style={{ display: "flex", gap: "12px" }}>
-            <button className="icon-btn">
-              <Filter size={18} />
-            </button>
-
-            <button className="btn-primary" onClick={() => navigate("/vehicles/add")}>
-              <Plus size={18} />
-              Add Vehicle
-            </button>
-          </div>
+    <div className="dashboard-area">
+      <div className="page-header">
+        <div className="page-title">
+          <h1>Vehicle Management</h1>
+          <p>
+            Vehicles linked to persons from the insurance system. Add a person
+            first — their insured vehicles appear here automatically.
+          </p>
         </div>
 
-        {error && (
-          <div style={{ background: "rgba(255, 61, 0, 0.1)", color: "#ff3d00", padding: "12px", borderRadius: "8px", marginBottom: "16px" }}>
-            {error}
-          </div>
-        )}
-
-        <div className="card">
-          {loading ? (
-            <div style={{ display: "flex", justifyContent: "center", padding: "40px" }}>
-              <Loader2 size={24} className="spin" />
-            </div>
-          ) : (
-            <DataTable
-              data={vehicles}
-              columns={columns}
-              searchPlaceholder="Search plate number, vehicle name, ID..."
-            />
-          )}
-        </div>
+        <button
+          className="btn-secondary"
+          onClick={loadVehicles}
+          disabled={loading}
+          title="Refresh from insurance"
+        >
+          <RefreshCw size={16} />
+          Refresh
+        </button>
       </div>
 
-      <DeleteConfirmModal
-        isOpen={showDeleteModal}
-        onClose={() => {
-          setShowDeleteModal(false);
-          setVehicleToDelete(null);
-        }}
-        onConfirm={handleDelete}
-        personName={vehicleToDelete?.plate}
-        title="Delete Vehicle"
-      />
-    </>
+      {error && (
+        <div
+          style={{
+            background: "rgba(255, 61, 0, 0.1)",
+            color: "#ff3d00",
+            padding: "12px",
+            borderRadius: "8px",
+            marginBottom: "16px",
+          }}
+        >
+          {error}
+        </div>
+      )}
+
+      <div className="card">
+        {loading ? (
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              padding: "40px",
+            }}
+          >
+            <Loader2 size={24} className="spin" />
+          </div>
+        ) : vehicles.length === 0 ? (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 10,
+              padding: "48px 20px",
+              color: "var(--text-secondary)",
+            }}
+          >
+            <Car size={28} />
+            <p style={{ margin: 0, fontWeight: 600, color: "var(--text-primary)" }}>
+              No linked vehicles yet
+            </p>
+            <p style={{ margin: 0, textAlign: "center", maxWidth: 420 }}>
+              When you add a Person whose mobile has a motor policy in the
+              insurance system, that vehicle will show up here.
+            </p>
+            <button
+              className="btn-primary"
+              onClick={() => navigate("/persons/add")}
+            >
+              Add Person
+            </button>
+          </div>
+        ) : (
+          <DataTable
+            data={vehicles}
+            columns={columns}
+            searchPlaceholder="Search plate, owner, mobile, policy..."
+          />
+        )}
+      </div>
+    </div>
   );
 };
+
+export default VehiclesView;

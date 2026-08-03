@@ -8,7 +8,7 @@ import Dashboard from "./pages/Dashboard";
 import { PersonsView } from "./pages/Persons";
 import { PersonForm } from "./pages/forms/PersonForm";
 import { VehiclesView } from "./pages/Vehicles";
-import { VehicleForm } from "./pages/forms/VehicleForm";
+import { VehicleView } from "./pages/forms/VehicleView";
 import { TreesView } from "./pages/Trees";
 import { TreeForm } from "./pages/forms/TreeForm";
 import { IdentityView } from "./pages/Identity";
@@ -104,8 +104,7 @@ function App() {
           <Route path="/persons/edit" element={<PersonForm />} />
           <Route path="/persons/view" element={<PersonForm />} />
           <Route path="/vehicles" element={<VehiclesView />} />
-          <Route path="/vehicles/add" element={<VehicleForm />} />
-          <Route path="/vehicles/edit" element={<VehicleForm />} />
+          <Route path="/vehicles/view" element={<VehicleView />} />
           <Route path="/trees" element={<TreesView />} />
           <Route path="/trees/add" element={<TreeForm />} />
           <Route path="/trees/edit" element={<TreeForm />} />

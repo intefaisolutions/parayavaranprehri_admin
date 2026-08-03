@@ -1,10 +1,11 @@
 import React, { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Wrench, TreePine, AlignLeft, CalendarDays } from "lucide-react";
+import { Wrench, TreePine, AlignLeft, CalendarDays, User } from "lucide-react";
 import { apiFetch } from "../../utils/apiConfig";
 import { SmartForm } from "../../components/form/SmartForm";
 import type { FormSectionConfig } from "../../components/form/SmartForm";
 import { FormPageHeader } from "../../components/form/FormPageHeader";
+import { DetailView } from "../../components/view/DetailView";
 
 interface MaintenanceLogFormData {
   _id?: string;
@@ -15,6 +16,7 @@ interface MaintenanceLogFormData {
   mitraId?: string;
   createdByName?: string;
   photoUrls?: string[];
+  createdAt?: string;
 }
 
 const emptyForm: MaintenanceLogFormData = {
@@ -34,11 +36,19 @@ const toDateTimeLocal = (value?: string) => {
   )}:${pad(d.getMinutes())}`;
 };
 
+const formatDateTime = (value?: string) => {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString();
+};
+
 export const MaintenanceLogForm = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const viewLog = location.state?.log as MaintenanceLogFormData | undefined;
-  const isView = !!viewLog;
+  const isView =
+    location.pathname.includes("/maintenance-logs/view") || !!viewLog;
 
   const [formData, setFormData] = useState<MaintenanceLogFormData>(
     viewLog
@@ -53,16 +63,11 @@ export const MaintenanceLogForm = () => {
   const [error, setError] = useState("");
 
   const handleFieldChange = (name: string, value: any) => {
-    if (isView) return;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isView) {
-      navigate("/maintenance-logs");
-      return;
-    }
     setSubmitting(true);
     setError("");
     try {
@@ -85,9 +90,117 @@ export const MaintenanceLogForm = () => {
     }
   };
 
+  if (isView) {
+    return (
+      <div className="dashboard-area">
+        <DetailView
+          title="Maintenance Log"
+          subtitle="Field activity details"
+          onBack={() => navigate("/maintenance-logs")}
+          headline={formData.activity || "Maintenance"}
+          subheadline={
+            formData.treeCode
+              ? `Tree ${formData.treeCode}`
+              : "Tree care activity from the field"
+          }
+          badges={[
+            { label: formData.activity || "Activity", tone: "info" },
+          ]}
+          meta={[
+            {
+              label: "Tree Code",
+              value: formData.treeCode,
+              icon: TreePine,
+            },
+            {
+              label: "Logged At",
+              value: formatDateTime(formData.loggedAt || formData.createdAt),
+              icon: CalendarDays,
+            },
+            {
+              label: "Logged By",
+              value: formData.createdByName || "—",
+              icon: User,
+            },
+            {
+              label: "Mitra ID",
+              value: formData.mitraId || "—",
+              icon: AlignLeft,
+            },
+          ]}
+          sections={[
+            {
+              title: "Activity Details",
+              icon: Wrench,
+              fields: [
+                {
+                  label: "Activity",
+                  value: formData.activity,
+                  icon: Wrench,
+                },
+                {
+                  label: "Tree Code",
+                  value: formData.treeCode,
+                  icon: TreePine,
+                },
+                {
+                  label: "Remarks",
+                  value: formData.remarks || "—",
+                  icon: AlignLeft,
+                  span: 2,
+                },
+              ],
+            },
+          ]}
+        >
+          {formData.photoUrls && formData.photoUrls.length > 0 && (
+            <div className="detail-panel">
+              <div className="detail-panel__head">
+                <h3 className="detail-panel__title">Photos</h3>
+              </div>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))",
+                  gap: 10,
+                }}
+              >
+                {formData.photoUrls.map((url) => (
+                  <a
+                    key={url}
+                    href={url}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                      display: "block",
+                      borderRadius: 12,
+                      overflow: "hidden",
+                      border: "1px solid var(--border-color)",
+                      aspectRatio: "1",
+                    }}
+                  >
+                    <img
+                      src={url}
+                      alt="Log photo"
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                      }}
+                    />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+        </DetailView>
+      </div>
+    );
+  }
+
   const sections: FormSectionConfig[] = [
     {
-      title: isView ? "Log Details" : "Maintenance Log",
+      title: "Maintenance Log",
       icon: Wrench,
       fields: [
         {
@@ -95,16 +208,14 @@ export const MaintenanceLogForm = () => {
           label: "Tree Code",
           type: "text",
           icon: TreePine,
-          required: !isView,
-          disabled: isView,
+          required: true,
         },
         {
           name: "activity",
           label: "Activity",
           type: "select",
           icon: Wrench,
-          required: !isView,
-          disabled: isView,
+          required: true,
           options: [
             { label: "Watering", value: "Watering" },
             { label: "Tree Guard", value: "Tree Guard" },
@@ -122,33 +233,13 @@ export const MaintenanceLogForm = () => {
           icon: AlignLeft,
           span: 2,
           rows: 4,
-          disabled: isView,
         },
-        ...(isView
-          ? [
-              {
-                name: "createdByName",
-                label: "Logged By",
-                type: "text" as const,
-                icon: AlignLeft,
-                disabled: true,
-              },
-              {
-                name: "mitraId",
-                label: "Mitra ID",
-                type: "text" as const,
-                icon: AlignLeft,
-                disabled: true,
-              },
-            ]
-          : [
-              {
-                name: "loggedAt",
-                label: "Logged At (optional)",
-                type: "date" as const,
-                icon: CalendarDays,
-              },
-            ]),
+        {
+          name: "loggedAt",
+          label: "Logged At (optional)",
+          type: "date",
+          icon: CalendarDays,
+        },
       ],
     },
   ];
@@ -157,7 +248,7 @@ export const MaintenanceLogForm = () => {
     <div className="dashboard-area">
       <FormPageHeader
         icon={Wrench}
-        title={isView ? "View Maintenance Log" : "Add Maintenance Log"}
+        title="Add Maintenance Log"
         subtitle="Tree care activity from the field"
         onBack={() => navigate("/maintenance-logs")}
       />
@@ -169,7 +260,7 @@ export const MaintenanceLogForm = () => {
           onSubmit={handleSubmit}
           submitting={submitting}
           error={error}
-          submitLabel={isView ? "Back" : "Save Log"}
+          submitLabel="Save Log"
           cancelLabel="Cancel"
           onCancel={() => navigate("/maintenance-logs")}
         />
