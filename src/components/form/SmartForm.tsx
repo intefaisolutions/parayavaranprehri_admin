@@ -55,6 +55,8 @@ export interface FormSectionConfig {
   description?: string;
   icon?: LucideIcon;
   fields: FieldConfig[];
+  /** Optional control shown on the right of the section header (e.g. map picker). */
+  headerAction?: React.ReactNode;
   /** Only renders the whole section when this returns true (or is omitted). */
   visibleWhen?: (formData: Record<string, any>) => boolean;
 }
@@ -494,19 +496,39 @@ export const SmartForm: React.FC<SmartFormProps> = ({
 
         return (
           <div className="form-section" key={section.title || idx}>
-            {(section.title || section.description) && (
-              <div className="form-section-header">
-                {section.icon && (
-                  <div className="form-section-icon">
-                    <section.icon size={18} />
-                  </div>
-                )}
-                <div>
-                  {section.title && <div className="form-section-title">{section.title}</div>}
-                  {section.description && (
-                    <div className="form-section-description">{section.description}</div>
+            {(section.title || section.description || section.headerAction) && (
+              <div
+                className="form-section-header"
+                style={
+                  section.headerAction
+                    ? {
+                        display: "flex",
+                        alignItems: "flex-start",
+                        justifyContent: "space-between",
+                        gap: 12,
+                        flexWrap: "wrap",
+                      }
+                    : undefined
+                }
+              >
+                <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                  {section.icon && (
+                    <div className="form-section-icon">
+                      <section.icon size={18} />
+                    </div>
                   )}
+                  <div>
+                    {section.title && (
+                      <div className="form-section-title">{section.title}</div>
+                    )}
+                    {section.description && (
+                      <div className="form-section-description">
+                        {section.description}
+                      </div>
+                    )}
+                  </div>
                 </div>
+                {section.headerAction}
               </div>
             )}
 

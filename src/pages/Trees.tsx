@@ -89,22 +89,39 @@ export const TreesView = () => {
     { accessorKey: "treeId", header: "Tree ID", enableSorting: true },
     { accessorKey: "treeName", header: "Name", enableSorting: true },
     { accessorKey: "species", header: "Species", enableSorting: true },
+    {
+      accessorKey: "treeAgeYears",
+      header: "Age (yrs)",
+      cell: ({ row }) => row.original.treeAgeYears ?? "—",
+      enableSorting: true,
+    },
+    {
+      accessorKey: "annualOxygenProductionKg",
+      header: "Est. O₂ / year",
+      cell: ({ row }) => {
+        const kg = Number(row.original.annualOxygenProductionKg || 0);
+        if (kg >= 1000) return `${(kg / 1000).toFixed(2)} t`;
+        return `${kg} kg`;
+      },
+      enableSorting: true,
+    },
+    {
+      accessorKey: "landName",
+      header: "Land Name",
+      cell: ({ row }) => row.original.landName || "—",
+      enableSorting: true,
+    },
     { accessorKey: "userName", header: "Owner", enableSorting: true },
-    { accessorKey: "vehicleNumber", header: "Assigned Vehicle", enableSorting: true },
+    {
+      accessorKey: "vidhanSabha",
+      header: "Vidhan Sabha",
+      cell: ({ row }) => row.original.vidhanSabha || "—",
+      enableSorting: true,
+    },
     {
       accessorKey: "assignedMitraName",
       header: "Caretaker Mitra",
       cell: ({ row }) => row.original.assignedMitraName || <span style={{ color: "var(--text-secondary)" }}>Unassigned</span>,
-      enableSorting: false,
-    },
-    {
-      accessorKey: "location",
-      header: "Location",
-      cell: ({ row }) => (
-        <span>
-          {[row.original.location, row.original.district, row.original.state].filter(Boolean).join(", ") || "-"}
-        </span>
-      ),
       enableSorting: false,
     },
     {

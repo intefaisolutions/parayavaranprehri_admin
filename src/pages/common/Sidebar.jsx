@@ -25,20 +25,30 @@ import {
   History,
   Leaf,
   Sparkles,
+  Sprout,
   Route,
   CalendarDays,
   AlertTriangle,
   Wrench,
+  X,
 } from "lucide-react";
 
-const Sidebar = () => {
+const Sidebar = ({
+  mobileOpen = false,
+  collapsed = false,
+  onNavigate,
+  onCloseMobile,
+}) => {
   const location = useLocation();
 
   const menuItems = [
     { id: "dashboard", icon: <LayoutDashboard size={20} />, label: "Dashboard" },
     { id: "persons", icon: <Users size={20} />, label: "Person Management" },
     { id: "vehicles", icon: <Car size={20} />, label: "Vehicle Management" },
+    { id: "tree-masters", icon: <Leaf size={20} />, label: "Tree Master Catalog" },
+    { id: "plantations", icon: <Sprout size={20} />, label: "Plantation Requests" },
     { id: "trees", icon: <TreePine size={20} />, label: "Tree Management" },
+    { id: "lands", icon: <MapPin size={20} />, label: "Land Management" },
     { id: "identity", icon: <FileBadge size={20} />, label: "Person Identity" },
     { id: "mitras", icon: <UserCheck size={20} />, label: "Paryavaran Mitra" },
     { id: "tasks", icon: <ClipboardList size={20} />, label: "Task Management" },
@@ -62,25 +72,27 @@ const Sidebar = () => {
     { id: "reports", icon: <Download size={20} />, label: "Reports" },
     { id: "settings", icon: <Settings size={20} />, label: "System Settings" },
     { id: "roles", icon: <ShieldCheck size={20} />, label: "Role & Permissions" },
-    { id: "audit", icon: <History size={20} />, label: "Audit Logs" }
+    { id: "audit", icon: <History size={20} />, label: "Audit Logs" },
   ];
 
   return (
-    <aside className="sidebar" style={{ overflowY: "auto" }}>
-      <div
-        className="brand"
-        style={{
-          position: "sticky",
-          top: 0,
-          background: "inherit",
-          zIndex: 10
-        }}
-      >
-        <div className="brand-icon">
+    <aside
+      className={`sidebar${collapsed ? " is-collapsed" : ""}${mobileOpen ? " is-mobile-open" : ""}`}
+      aria-label="Main navigation"
+    >
+      <div className="brand">
+        <div className="brand-icon" aria-hidden="true">
           <Leaf size={24} />
         </div>
-
-        Paryavaran Prahri
+        <span className="brand-text">Paryavaran Prahri</span>
+        <button
+          type="button"
+          className="sidebar-mobile-close"
+          onClick={onCloseMobile}
+          aria-label="Close navigation menu"
+        >
+          <X size={18} />
+        </button>
       </div>
 
       <nav className="nav-menu">
@@ -93,10 +105,15 @@ const Sidebar = () => {
             <Link
               key={item.id}
               to={`/${item.id}`}
-              className={`nav-item ${active ? "active" : ""}`}
+              className={`nav-item${active ? " active" : ""}`}
+              title={item.label}
+              aria-current={active ? "page" : undefined}
+              onClick={() => onNavigate?.()}
             >
-              {item.icon}
-              {item.label}
+              <span className="nav-icon" aria-hidden="true">
+                {item.icon}
+              </span>
+              <span className="nav-label">{item.label}</span>
             </Link>
           );
         })}

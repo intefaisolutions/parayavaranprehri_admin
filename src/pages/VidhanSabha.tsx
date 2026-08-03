@@ -14,10 +14,25 @@ interface VidhanSabha {
   totalPersons: number;
   totalVehicles: number;
   totalTrees: number;
+  totalAnnualOxygenKg?: number;
+  governmentLandAcres?: number;
+  privateLandAcres?: number;
+  remainingPlantationCapacity?: number;
+  estimatedOxygenTonsPerYear?: number;
   totalMitras: number;
   assignedAdmin?: string;
   status: "Active" | "Inactive";
 }
+
+const formatOxygen = (kg?: number) => {
+  const value = Number(kg || 0);
+  if (value >= 1000) {
+    return `${(value / 1000).toLocaleString(undefined, {
+      maximumFractionDigits: 2,
+    })} t/yr`;
+  }
+  return `${value.toLocaleString()} kg/yr`;
+};
 
 export const VidhanSabhaView = () => {
   const navigate = useNavigate();
@@ -93,8 +108,39 @@ export const VidhanSabhaView = () => {
       enableSorting: true,
     },
     {
+      accessorKey: "governmentLandAcres",
+      header: "Govt Land",
+      cell: ({ row }) =>
+        `${Number(row.original.governmentLandAcres || 0).toLocaleString()} Ac`,
+      enableSorting: true,
+    },
+    {
+      accessorKey: "privateLandAcres",
+      header: "Private Land",
+      cell: ({ row }) =>
+        `${Number(row.original.privateLandAcres || 0).toLocaleString()} Ac`,
+      enableSorting: true,
+    },
+    {
       accessorKey: "totalTrees",
       header: "Total Trees",
+      enableSorting: true,
+    },
+    {
+      accessorKey: "estimatedOxygenTonsPerYear",
+      header: "Est. O₂",
+      cell: ({ row }) => {
+        const tons = row.original.estimatedOxygenTonsPerYear;
+        if (tons != null) return `${tons.toLocaleString()} t/yr`;
+        return formatOxygen(row.original.totalAnnualOxygenKg);
+      },
+      enableSorting: true,
+    },
+    {
+      accessorKey: "remainingPlantationCapacity",
+      header: "Remaining Capacity",
+      cell: ({ row }) =>
+        Number(row.original.remainingPlantationCapacity || 0).toLocaleString(),
       enableSorting: true,
     },
     {

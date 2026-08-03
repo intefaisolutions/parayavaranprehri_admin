@@ -28,9 +28,17 @@ interface VidhanSabhaFormData {
   vidhanSabhaName: string;
   assignedAdmin: string;
   status: "Active" | "Inactive";
+  /** GeoJSON Polygon/MultiPolygon or [[lng,lat], ...] ring as JSON text */
+  boundaryText: string;
   totalPersons?: number;
   totalVehicles?: number;
   totalTrees?: number;
+  totalAnnualOxygenKg?: number;
+  totalOxygenDisplay?: string;
+  governmentLandAcres?: number;
+  privateLandAcres?: number;
+  remainingPlantationCapacity?: number;
+  estimatedOxygenTonsPerYear?: number;
   totalMitras?: number;
 }
 
@@ -41,7 +49,17 @@ const emptyForm: VidhanSabhaFormData = {
   vidhanSabhaName: "",
   assignedAdmin: "",
   status: "Active",
+  boundaryText: "",
 };
+
+function boundaryToText(boundary: unknown): string {
+  if (!boundary) return "";
+  try {
+    return JSON.stringify(boundary, null, 2);
+  } catch {
+    return "";
+  }
+}
 
 export const VidhanSabhaForm = () => {
   const navigate = useNavigate();
@@ -51,12 +69,27 @@ export const VidhanSabhaForm = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
+  const formatOxygen = (kg?: number) => {
+    const value = Number(kg || 0);
+    if (value >= 1000) {
+      return `${(value / 1000).toLocaleString(undefined, {
+        maximumFractionDigits: 2,
+      })} tonnes/year`;
+    }
+    return `${value.toLocaleString()} kg/year`;
+  };
+
   const [formData, setFormData] = useState<VidhanSabhaFormData>(
     editEntry
       ? {
           ...emptyForm,
           ...editEntry,
           country: "India",
+          boundaryText: boundaryToText(editEntry.boundary),
+          totalOxygenDisplay:
+            editEntry.estimatedOxygenTonsPerYear != null
+              ? `${editEntry.estimatedOxygenTonsPerYear} tonnes/year`
+              : formatOxygen(editEntry.totalAnnualOxygenKg),
         }
       : emptyForm
   );
@@ -88,17 +121,43 @@ export const VidhanSabhaForm = () => {
       return;
     }
 
+    let boundary: unknown = undefined;
+    const rawBoundary = formData.boundaryText?.trim();
+    if (rawBoundary) {
+      try {
+        boundary = JSON.parse(rawBoundary);
+      } catch {
+        setError(
+          "Boundary must be valid JSON: GeoJSON Polygon or [[lng,lat], ...] ring",
+        );
+        return;
+      }
+    }
+
     setSubmitting(true);
 
     const {
       _id,
       country: _country,
+      boundaryText: _boundaryText,
       totalPersons: _totalPersons,
       totalVehicles: _totalVehicles,
       totalTrees: _totalTrees,
+      totalAnnualOxygenKg: _totalO2,
+      totalOxygenDisplay: _totalOxygenDisplay,
+      governmentLandAcres: _gov,
+      privateLandAcres: _priv,
+      remainingPlantationCapacity: _rem,
+      estimatedOxygenTonsPerYear: _tons,
       totalMitras: _totalMitras,
-      ...payload
+      ...rest
     } = formData as any;
+
+    const payload = {
+      ...rest,
+      country: formData.country || "India",
+      ...(boundary !== undefined ? { boundary } : {}),
+    };
 
     try {
       if (editEntry?._id) {
@@ -190,9 +249,28 @@ export const VidhanSabhaForm = () => {
       ],
     },
     {
+      title: "Boundary (GeoJSON)",
+      description:
+        "Polygon used to auto-map lands by latitude/longitude. Coordinates are [longitude, latitude].",
+      icon: MapPin,
+      fields: [
+        {
+          name: "boundaryText",
+          label: "Boundary JSON",
+          type: "textarea",
+          icon: MapPin,
+          span: 2,
+          placeholder:
+            '[[77.10,23.50],[77.20,23.50],[77.20,23.60],[77.10,23.60]]\nor\n{"type":"Polygon","coordinates":[[[lng,lat],...]]}',
+          helpText:
+            "Simple ring [[lng,lat], ...] or full GeoJSON Polygon/MultiPolygon. Saving remaps all lands with coordinates.",
+        },
+      ],
+    },
+    {
       title: "Current Stats",
       description:
-        "Read-only counts tracked automatically as Persons, Vehicles, Trees and Mitras get linked to this Vidhan Sabha.",
+        "Trees and O₂ are summed automatically from trees linked to this Vidhan Sabha.",
       icon: TreePine,
       fields: [
         {
@@ -210,8 +288,36 @@ export const VidhanSabhaForm = () => {
           disabled: true,
         },
         {
+          name: "governmentLandAcres",
+          label: "Government Land (Acres)",
+          type: "number",
+          icon: TreePine,
+          disabled: true,
+        },
+        {
+          name: "privateLandAcres",
+          label: "Private Land (Acres)",
+          type: "number",
+          icon: TreePine,
+          disabled: true,
+        },
+        {
           name: "totalTrees",
           label: "Total Trees Planted",
+          type: "number",
+          icon: TreePine,
+          disabled: true,
+        },
+        {
+          name: "totalOxygenDisplay",
+          label: "Estimated Annual Oxygen",
+          type: "text",
+          icon: TreePine,
+          disabled: true,
+        },
+        {
+          name: "remainingPlantationCapacity",
+          label: "Remaining Plantation Capacity",
           type: "number",
           icon: TreePine,
           disabled: true,
@@ -224,8 +330,6 @@ export const VidhanSabhaForm = () => {
           disabled: true,
         },
       ],
-      // Only show once the Vidhan Sabha actually exists - these are computed
-      // over time, not something an admin fills in when creating one.
       visibleWhen: (data) => !!data._id,
     },
   ];
@@ -235,7 +339,7 @@ export const VidhanSabhaForm = () => {
       <FormPageHeader
         icon={Building}
         title={editEntry ? "Edit Vidhan Sabha" : "Add Vidhan Sabha"}
-        subtitle="Country → State → District → Vidhan Sabha. Person/Vehicle/Tree/Mitra counts are tracked automatically as they get linked here."
+        subtitle="District-level constituency with optional GeoJSON boundary. Lands are auto-mapped when their point falls inside the polygon."
         onBack={() => navigate("/vidhansabha")}
       />
 

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 
 import Sidebar from "./pages/common/Sidebar";
@@ -11,6 +11,13 @@ import { VehiclesView } from "./pages/Vehicles";
 import { VehicleView } from "./pages/forms/VehicleView";
 import { TreesView } from "./pages/Trees";
 import { TreeForm } from "./pages/forms/TreeForm";
+import { TreeMastersView } from "./pages/TreeMasters";
+import { TreeMasterForm } from "./pages/forms/TreeMasterForm";
+import { PlantationsView } from "./pages/Plantations";
+import { PlantationForm } from "./pages/forms/PlantationForm";
+import { LandsView } from "./pages/Lands";
+import { LandForm } from "./pages/forms/LandForm";
+import { LandView } from "./pages/forms/LandView";
 import { IdentityView } from "./pages/Identity";
 import { IdentityForm } from "./pages/forms/IdentityForm";
 import { MitrasView } from "./pages/Mitras";
@@ -79,6 +86,49 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(
     () => !!localStorage.getItem('accessToken')
   );
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const w = window.innerWidth;
+    return w >= 768 && w < 1024;
+  });
+
+  const closeMobileSidebar = useCallback(() => {
+    setMobileSidebarOpen(false);
+  }, []);
+
+  useEffect(() => {
+    const onResize = () => {
+      const w = window.innerWidth;
+      if (w >= 1024) {
+        setMobileSidebarOpen(false);
+      } else if (w < 768) {
+        setMobileSidebarOpen(false);
+      } else {
+        // Tablet: prefer icons-only; keep user toggle if already set
+        setSidebarCollapsed(true);
+        setMobileSidebarOpen(false);
+      }
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const lock = mobileSidebarOpen && window.innerWidth < 768;
+    document.body.classList.toggle("sidebar-drawer-open", lock);
+    return () => document.body.classList.remove("sidebar-drawer-open");
+  }, [mobileSidebarOpen, isAuthenticated]);
+
+  useEffect(() => {
+    if (!mobileSidebarOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeMobileSidebar();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [mobileSidebarOpen, closeMobileSidebar]);
 
   const renderRoutes = () => (
     <Routes>
@@ -108,6 +158,16 @@ function App() {
           <Route path="/trees" element={<TreesView />} />
           <Route path="/trees/add" element={<TreeForm />} />
           <Route path="/trees/edit" element={<TreeForm />} />
+          <Route path="/tree-masters" element={<TreeMastersView />} />
+          <Route path="/tree-masters/add" element={<TreeMasterForm />} />
+          <Route path="/tree-masters/edit" element={<TreeMasterForm />} />
+          <Route path="/plantations" element={<PlantationsView />} />
+          <Route path="/plantations/add" element={<PlantationForm />} />
+          <Route path="/plantations/edit" element={<PlantationForm />} />
+          <Route path="/lands" element={<LandsView />} />
+          <Route path="/lands/add" element={<LandForm />} />
+          <Route path="/lands/edit" element={<LandForm />} />
+          <Route path="/lands/view" element={<LandView />} />
           <Route path="/identity" element={<IdentityView />} />
           <Route path="/identity/add" element={<IdentityForm />} />
           <Route path="/identity/edit" element={<IdentityForm />} />
@@ -215,11 +275,33 @@ function App() {
 
   if (!isAuthenticated) { return renderRoutes(); }
 
+  const layoutClass = [
+    "admin-layout",
+    sidebarCollapsed ? "sidebar-collapsed" : "",
+    mobileSidebarOpen ? "sidebar-open" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
-    <div className="admin-layout">
-      <Sidebar />
+    <div className={layoutClass}>
+      <div
+        className="sidebar-backdrop"
+        onClick={closeMobileSidebar}
+        aria-hidden={!mobileSidebarOpen}
+      />
+      <Sidebar
+        mobileOpen={mobileSidebarOpen}
+        collapsed={sidebarCollapsed}
+        onNavigate={closeMobileSidebar}
+        onCloseMobile={closeMobileSidebar}
+      />
       <main className="main-content">
-        <Header />
+        <Header
+          sidebarCollapsed={sidebarCollapsed}
+          onToggleMobileSidebar={() => setMobileSidebarOpen((v) => !v)}
+          onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
+        />
         {renderRoutes()}
       </main>
     </div>
