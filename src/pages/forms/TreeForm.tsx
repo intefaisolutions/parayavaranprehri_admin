@@ -6,8 +6,11 @@ import {
   Hash,
   Landmark,
   Leaf,
+  Loader2,
   MapPin,
   Navigation,
+  Phone,
+  Plus,
   Ruler,
   Search,
   ShieldCheck,
@@ -15,6 +18,7 @@ import {
   StickyNote,
   User,
   Wind,
+  X,
 } from "lucide-react";
 import { apiFetch } from "../../utils/apiConfig";
 import {
@@ -60,6 +64,7 @@ export interface TreesFormData {
   treeName: string;
   species: string;
   scientificName: string;
+  personId: string;
   userId: string;
   userName: string;
   mobile: string;
@@ -68,6 +73,7 @@ export interface TreesFormData {
   insuranceStatus: string;
   plantedDate: string;
   plantedBy: string;
+  assignedMitraId: string;
   state: string;
   district: string;
   city: string;
@@ -89,10 +95,77 @@ export interface TreesFormData {
   image: string;
 }
 
+type MitraOption = {
+  _id: string;
+  name: string;
+  mobile?: string;
+  district?: string;
+  vidhanSabha?: string;
+  status?: string;
+};
+
+type PersonOption = {
+  _id: string;
+  personId?: string;
+  name: string;
+  mobile?: string;
+  city?: string;
+  status?: string;
+};
+
+type OwnerVehicle = {
+  registrationNumber?: string;
+  vehicleType?: string;
+  vehicleModel?: string;
+  isInsured?: boolean;
+  policyStatus?: string;
+  policyNumber?: string | null;
+};
+
+const ADD_MITRA_VALUE = "__add_mitra__";
+const ADD_PERSON_VALUE = "__add_person__";
+
+function mapInsuranceStatus(vehicle?: OwnerVehicle | null): string {
+  if (!vehicle) return "NOT_INSURED";
+  const status = String(vehicle.policyStatus || "").toUpperCase();
+  if (status === "ACTIVE") return "ACTIVE";
+  if (status === "EXPIRED") return "EXPIRED";
+  if (vehicle.isInsured || vehicle.policyNumber) return "EXPIRED";
+  return "NOT_INSURED";
+}
+
+function normalizeOwnerVehicle(raw: any, index: number): OwnerVehicle {
+  const registrationNumber = String(
+    raw?.registrationNumber ||
+      raw?.plate ||
+      raw?.vehicleNumber ||
+      raw?.regNo ||
+      raw?.registration_number ||
+      "",
+  ).trim();
+  return {
+    registrationNumber: registrationNumber || `UNKNOWN-${index + 1}`,
+    vehicleType: raw?.vehicleType ? String(raw.vehicleType) : undefined,
+    vehicleModel: raw?.vehicleModel ? String(raw.vehicleModel) : undefined,
+    isInsured: !!raw?.isInsured,
+    policyStatus: String(raw?.policyStatus || "NOT_INSURED").toUpperCase(),
+    policyNumber: raw?.policyNumber != null ? String(raw.policyNumber) : null,
+  };
+}
+
+function vehicleFieldsFrom(vehicle?: OwnerVehicle | null) {
+  return {
+    vehicleNumber: vehicle?.registrationNumber || "",
+    policyNumber: vehicle?.policyNumber ? String(vehicle.policyNumber) : "",
+    insuranceStatus: mapInsuranceStatus(vehicle),
+  };
+}
+
 const emptyForm: TreesFormData = {
   treeName: "",
   species: "",
   scientificName: "",
+  personId: "",
   userId: "",
   userName: "",
   mobile: "",
@@ -101,6 +174,7 @@ const emptyForm: TreesFormData = {
   insuranceStatus: "NOT_INSURED",
   plantedDate: new Date().toISOString().split("T")[0],
   plantedBy: "",
+  assignedMitraId: "",
   state: "",
   district: "",
   city: "",
@@ -158,18 +232,38 @@ export const TreeForm = () => {
           landName: editTree.landName ?? "",
           plantationMethod: editTree.plantationMethod ?? "INDIVIDUAL",
           responsibleOrganization: editTree.responsibleOrganization ?? "",
+          assignedMitraId: editTree.assignedMitraId
+            ? String(editTree.assignedMitraId)
+            : "",
+          plantedBy:
+            editTree.assignedMitraName || editTree.plantedBy || "",
+          personId: editTree.personId ? String(editTree.personId) : "",
+          userId: editTree.userId ? String(editTree.userId) : "",
         }
       : emptyForm,
   );
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [searching, setSearching] = useState(false);
-  const [searchMessage, setSearchMessage] = useState("");
   const [landOptions, setLandOptions] = useState<
     { label: string; value: string; meta?: any }[]
   >([]);
   const [loadingLands, setLoadingLands] = useState(false);
+  const [vsOptions, setVsOptions] = useState<
+    { label: string; value: string }[]
+  >([]);
+  const [loadingVs, setLoadingVs] = useState(false);
+  const [mitras, setMitras] = useState<MitraOption[]>([]);
+  const [loadingMitras, setLoadingMitras] = useState(false);
+  const [persons, setPersons] = useState<PersonOption[]>([]);
+  const [loadingPersons, setLoadingPersons] = useState(false);
+  const [ownerVehicles, setOwnerVehicles] = useState<OwnerVehicle[]>([]);
+  const [loadingOwnerVehicles, setLoadingOwnerVehicles] = useState(false);
+  const [vehicleLoadMessage, setVehicleLoadMessage] = useState("");
+  const [showAddMitra, setShowAddMitra] = useState(false);
+  const [addingMitra, setAddingMitra] = useState(false);
+  const [addMitraError, setAddMitraError] = useState("");
+  const [newMitra, setNewMitra] = useState({ name: "", mobile: "" });
   const [speciesOptions, setSpeciesOptions] = useState(FALLBACK_SPECIES_OPTIONS);
   const [treeMasterMeta, setTreeMasterMeta] = useState<
     Record<string, { scientificName?: string; name: string }>
@@ -200,8 +294,94 @@ export const TreeForm = () => {
       });
   }, []);
 
+  const loadMitras = async () => {
+    setLoadingMitras(true);
+    try {
+      const rows = await apiFetch<MitraOption[]>(
+        "/api/v1/mitras?status=Approved",
+      );
+      setMitras(Array.isArray(rows) ? rows : []);
+    } catch {
+      setMitras([]);
+    } finally {
+      setLoadingMitras(false);
+    }
+  };
+
+  useEffect(() => {
+    loadMitras();
+  }, []);
+
+  const loadPersons = async () => {
+    setLoadingPersons(true);
+    try {
+      const params = new URLSearchParams({
+        limit: "500",
+        sortBy: "name",
+        sortOrder: "asc",
+        status: "Active",
+      });
+      const rows = await apiFetch<PersonOption[]>(
+        `/api/v1/persons?${params.toString()}`,
+      );
+      setPersons(Array.isArray(rows) ? rows : []);
+    } catch {
+      setPersons([]);
+    } finally {
+      setLoadingPersons(false);
+    }
+  };
+
+  useEffect(() => {
+    loadPersons();
+  }, []);
+
   useEffect(() => {
     if (!formData.state || !formData.district) {
+      setVsOptions([]);
+      return;
+    }
+
+    setLoadingVs(true);
+    const params = new URLSearchParams({
+      limit: "200",
+      sortBy: "vidhanSabhaName",
+      sortOrder: "asc",
+      district: formData.district,
+    });
+
+    apiFetch<any[]>(`/api/v1/vidhan-sabhas?${params.toString()}`)
+      .then((rows) => {
+        let items = Array.isArray(rows) ? rows : [];
+        if (formData.state) {
+          const stateLc = formData.state.toLowerCase();
+          const byState = items.filter(
+            (v) => !v.state || String(v.state).toLowerCase() === stateLc,
+          );
+          if (byState.length) items = byState;
+        }
+        const opts = items.map((v) => ({
+          label: v.vidhanSabhaName,
+          value: v.vidhanSabhaName,
+        }));
+        // Keep current VS visible when editing even if list is empty/filtered
+        if (
+          formData.vidhanSabha &&
+          !opts.some((o) => o.value === formData.vidhanSabha)
+        ) {
+          opts.unshift({
+            label: formData.vidhanSabha,
+            value: formData.vidhanSabha,
+          });
+        }
+        setVsOptions(opts);
+      })
+      .catch(() => setVsOptions([]))
+      .finally(() => setLoadingVs(false));
+  }, [formData.state, formData.district]);
+
+  useEffect(() => {
+    if (!formData.state || !formData.district || !formData.vidhanSabha) {
       setLandOptions([]);
       return;
     }
@@ -211,6 +391,7 @@ export const TreeForm = () => {
       const params = new URLSearchParams({
         state: formData.state,
         district: formData.district,
+        vidhanSabha: formData.vidhanSabha,
       });
       if (formData.landSearch.trim()) {
         params.set("search", formData.landSearch.trim());
@@ -226,7 +407,12 @@ export const TreeForm = () => {
     }, 250);
 
     return () => clearTimeout(timer);
-  }, [formData.state, formData.district, formData.landSearch]);
+  }, [
+    formData.state,
+    formData.district,
+    formData.vidhanSabha,
+    formData.landSearch,
+  ]);
 
   const oxygenPreview = useMemo(
     () =>
@@ -246,7 +432,155 @@ export const TreeForm = () => {
     ],
   );
 
+  const mitraSelectOptions = useMemo(() => {
+    const sorted = [...mitras].sort((a, b) => {
+      const aMatch =
+        (formData.district && a.district === formData.district) ||
+        (formData.vidhanSabha && a.vidhanSabha === formData.vidhanSabha)
+          ? 0
+          : 1;
+      const bMatch =
+        (formData.district && b.district === formData.district) ||
+        (formData.vidhanSabha && b.vidhanSabha === formData.vidhanSabha)
+          ? 0
+          : 1;
+      if (aMatch !== bMatch) return aMatch - bMatch;
+      return a.name.localeCompare(b.name);
+    });
+
+    const opts = [
+      { label: "+ Add new Mitra", value: ADD_MITRA_VALUE },
+      ...sorted.map((m) => ({
+        label: `${m.name}${m.mobile ? ` · ${m.mobile}` : ""}${
+          m.district ? ` · ${m.district}` : ""
+        }`,
+        value: m._id,
+      })),
+    ];
+
+    if (
+      formData.assignedMitraId &&
+      formData.assignedMitraId !== ADD_MITRA_VALUE &&
+      !opts.some((o) => o.value === formData.assignedMitraId)
+    ) {
+      opts.splice(1, 0, {
+        label: formData.plantedBy || formData.assignedMitraId,
+        value: formData.assignedMitraId,
+      });
+    }
+
+    return opts;
+  }, [
+    mitras,
+    formData.district,
+    formData.vidhanSabha,
+    formData.assignedMitraId,
+    formData.plantedBy,
+  ]);
+
+  const personSelectOptions = useMemo(() => {
+    const opts = [
+      { label: "+ Add new Person", value: ADD_PERSON_VALUE },
+      ...persons.map((p) => ({
+        label: `${p.name}${p.mobile ? ` · ${p.mobile}` : ""}${
+          p.personId ? ` · ${p.personId}` : ""
+        }`,
+        value: p._id,
+      })),
+    ];
+
+    if (
+      formData.personId &&
+      formData.personId !== ADD_PERSON_VALUE &&
+      !opts.some((o) => o.value === formData.personId)
+    ) {
+      opts.splice(1, 0, {
+        label:
+          formData.userName ||
+          formData.mobile ||
+          formData.personId,
+        value: formData.personId,
+      });
+    }
+
+    return opts;
+  }, [persons, formData.personId, formData.userName, formData.mobile]);
+
+  const fillOwnerVehicles = async (personMongoId: string) => {
+    if (!personMongoId) {
+      setOwnerVehicles([]);
+      setVehicleLoadMessage("");
+      setFormData((prev) => ({
+        ...prev,
+        ...vehicleFieldsFrom(null),
+      }));
+      return;
+    }
+
+    setLoadingOwnerVehicles(true);
+    setVehicleLoadMessage("");
+    try {
+      const data = await apiFetch<{
+        vehicles?: any[];
+        message?: string;
+      }>(`/api/v1/persons/${personMongoId}/vehicles`);
+      const vehicles = (Array.isArray(data?.vehicles) ? data.vehicles : []).map(
+        (v, i) => normalizeOwnerVehicle(v, i),
+      );
+      setOwnerVehicles(vehicles);
+      setVehicleLoadMessage(
+        data?.message ||
+          (vehicles.length
+            ? `${vehicles.length} vehicle(s) — select one to continue`
+            : "No vehicles found for this owner"),
+      );
+      // Auto-pick only when exactly one vehicle; otherwise user must choose
+      if (vehicles.length === 1) {
+        setFormData((prev) => ({
+          ...prev,
+          ...vehicleFieldsFrom(vehicles[0]),
+        }));
+      } else {
+        setFormData((prev) => ({
+          ...prev,
+          ...vehicleFieldsFrom(null),
+        }));
+      }
+    } catch (err: any) {
+      setOwnerVehicles([]);
+      setVehicleLoadMessage(
+        err?.message || "Failed to load vehicles for this owner",
+      );
+      setFormData((prev) => ({
+        ...prev,
+        ...vehicleFieldsFrom(null),
+      }));
+    } finally {
+      setLoadingOwnerVehicles(false);
+    }
+  };
+
+  const selectOwnerVehicle = (regNo: string) => {
+    const vehicle =
+      ownerVehicles.find((v) => v.registrationNumber === regNo) || null;
+    setFormData((prev) => ({
+      ...prev,
+      ...vehicleFieldsFrom(vehicle),
+    }));
+  };
+
   const handleFieldChange = (name: string, value: any) => {
+    if (name === "assignedMitraId" && value === ADD_MITRA_VALUE) {
+      setNewMitra({ name: "", mobile: "" });
+      setAddMitraError("");
+      setShowAddMitra(true);
+      return;
+    }
+    if (name === "personId" && value === ADD_PERSON_VALUE) {
+      navigate("/persons/add");
+      return;
+    }
+
     setFormData((prev) => {
       if (name === "species") {
         const master = treeMasterMeta[value];
@@ -264,18 +598,29 @@ export const TreeForm = () => {
           ...prev,
           state: value,
           district: "",
+          vidhanSabha: "",
           landId: "",
           landName: "",
-          vidhanSabha: "",
+          landSearch: "",
         };
       }
       if (name === "district") {
         return {
           ...prev,
           district: value,
+          vidhanSabha: "",
           landId: "",
           landName: "",
-          vidhanSabha: "",
+          landSearch: "",
+        };
+      }
+      if (name === "vidhanSabha") {
+        return {
+          ...prev,
+          vidhanSabha: value,
+          landId: "",
+          landName: "",
+          landSearch: "",
         };
       }
       if (name === "landId") {
@@ -284,54 +629,123 @@ export const TreeForm = () => {
           ...prev,
           landId: value,
           landName: land?.landName || "",
-          vidhanSabha: land?.vidhanSabha || "",
+          vidhanSabha: land?.vidhanSabha || prev.vidhanSabha,
           state: land?.state || prev.state,
           district: land?.district || prev.district,
           city: land?.villageOrCity || land?.village || prev.city,
         };
       }
+      if (name === "assignedMitraId") {
+        const mitra = mitras.find((m) => m._id === value);
+        return {
+          ...prev,
+          assignedMitraId: value,
+          plantedBy: mitra?.name || prev.plantedBy,
+        };
+      }
+      if (name === "personId") {
+        const person = persons.find((p) => p._id === value);
+        return {
+          ...prev,
+          personId: value,
+          userId: value,
+          userName: person?.name || "",
+          mobile: person?.mobile || "",
+          vehicleNumber: "",
+          policyNumber: "",
+          insuranceStatus: "NOT_INSURED",
+        };
+      }
+      if (name === "vehicleNumber") {
+        const vehicle =
+          ownerVehicles.find((v) => v.registrationNumber === value) || null;
+        return {
+          ...prev,
+          vehicleNumber: value,
+          policyNumber: vehicle
+            ? vehicle.policyNumber
+              ? String(vehicle.policyNumber)
+              : ""
+            : prev.policyNumber,
+          insuranceStatus: vehicle
+            ? mapInsuranceStatus(vehicle)
+            : prev.insuranceStatus,
+        };
+      }
       return { ...prev, [name]: value };
     });
+
+    if (name === "personId" && value && value !== ADD_PERSON_VALUE) {
+      void fillOwnerVehicles(value);
+    }
+    if (name === "personId" && !value) {
+      setOwnerVehicles([]);
+    }
   };
 
-  const handleSearchUser = async () => {
-    const mobile = formData.mobile.trim();
-    if (mobile.length < 10) {
-      setSearchMessage("Enter a valid 10-digit mobile number to search.");
+  // Edit mode: load vehicles list for dropdown without overwriting saved fields
+  useEffect(() => {
+    if (!isEditing || !editTree?.personId) return;
+    const personMongoId = String(editTree.personId);
+    let cancelled = false;
+    (async () => {
+      setLoadingOwnerVehicles(true);
+      try {
+        const data = await apiFetch<{ vehicles?: OwnerVehicle[] }>(
+          `/api/v1/persons/${personMongoId}/vehicles`,
+        );
+        if (cancelled) return;
+        setOwnerVehicles(Array.isArray(data?.vehicles) ? data.vehicles : []);
+      } catch {
+        if (!cancelled) setOwnerVehicles([]);
+      } finally {
+        if (!cancelled) setLoadingOwnerVehicles(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isEditing, editTree?.personId]);
+
+  const handleCreateMitra = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const name = newMitra.name.trim();
+    const mobile = newMitra.mobile.trim();
+    if (!name) {
+      setAddMitraError("Mitra name is required");
       return;
     }
-    setSearching(true);
-    setSearchMessage("");
+    if (mobile.length < 10) {
+      setAddMitraError("Enter a valid 10-digit mobile number");
+      return;
+    }
+
+    setAddingMitra(true);
+    setAddMitraError("");
     try {
-      const result = await apiFetch<{ items: any[] }>(
-        `/api/v1/users?search=${encodeURIComponent(mobile)}&limit=5`,
-      );
-      const items = result?.items || [];
-      const match = items.find((u: any) => u.phone === mobile) || items[0];
-      if (match) {
-        const fullName = [match.firstName, match.lastName]
-          .filter(Boolean)
-          .join(" ");
-        setFormData((prev) => ({
-          ...prev,
-          userId: match._id,
-          userName: fullName || prev.userName,
-        }));
-        setSearchMessage(
-          `Matched user: ${fullName || match.email || match._id}`,
-        );
-      } else {
-        setSearchMessage(
-          "No matching user found. Enter User ID and Name manually below.",
-        );
-      }
+      const created = await apiFetch<MitraOption>("/api/v1/mitras", {
+        method: "POST",
+        body: JSON.stringify({
+          name,
+          mobile,
+          status: "Approved",
+          state: formData.state || undefined,
+          district: formData.district || undefined,
+          vidhanSabha: formData.vidhanSabha || undefined,
+        }),
+      });
+      await loadMitras();
+      setFormData((prev) => ({
+        ...prev,
+        assignedMitraId: created._id,
+        plantedBy: created.name || name,
+      }));
+      setShowAddMitra(false);
+      setNewMitra({ name: "", mobile: "" });
     } catch (err: any) {
-      setSearchMessage(
-        err.message ||
-          "Search failed. Enter User ID and Name manually below.",
-      );
+      setAddMitraError(err.message || "Failed to create Mitra");
     } finally {
-      setSearching(false);
+      setAddingMitra(false);
     }
   };
 
@@ -339,14 +753,16 @@ export const TreeForm = () => {
     e.preventDefault();
     setError("");
 
-    if (!formData.mobile.trim()) {
-      setError("Owner mobile number is required");
+    if (!formData.personId.trim()) {
+      setError("Please select an Owner (Person)");
       return;
     }
-    if (!formData.userId.trim() || !formData.userName.trim()) {
-      setError(
-        "User ID and User Name are required — search by mobile or enter manually",
-      );
+    if (!formData.mobile.trim() || !formData.userName.trim()) {
+      setError("Selected person is missing name or mobile");
+      return;
+    }
+    if (ownerVehicles.length > 0 && !formData.vehicleNumber.trim()) {
+      setError("Select a vehicle from the owner’s vehicle list");
       return;
     }
     if (!formData.species.trim()) {
@@ -359,6 +775,10 @@ export const TreeForm = () => {
     }
     if (!formData.state || !formData.district) {
       setError("Please select State and District");
+      return;
+    }
+    if (!formData.vidhanSabha) {
+      setError("Please select Vidhan Sabha");
       return;
     }
     if (!formData.landId) {
@@ -374,6 +794,7 @@ export const TreeForm = () => {
       treeAgeYears: _age,
       annualOxygenProductionKg: _o2,
       landSearch: _landSearch,
+      assignedMitraId,
       ...rest
     } = formData as any;
 
@@ -387,6 +808,12 @@ export const TreeForm = () => {
       height: formData.height === "" ? undefined : Number(formData.height),
       dbh: formData.dbh === "" ? undefined : Number(formData.dbh),
       vidhanSabha: formData.vidhanSabha || undefined,
+      plantedBy: formData.plantedBy || undefined,
+      assignedMitraId: assignedMitraId || undefined,
+      personId: formData.personId || undefined,
+      userId: formData.userId || formData.personId || undefined,
+      userName: formData.userName || undefined,
+      mobile: formData.mobile || undefined,
       landId: formData.landId || undefined,
       landName: formData.landName || undefined,
       plantationMethod: formData.plantationMethod || undefined,
@@ -498,9 +925,213 @@ export const TreeForm = () => {
       ],
     },
     {
+      title: "Owner Details",
+      description:
+        "1) Select owner → 2) pick a vehicle from their list → 3) then choose plantation land.",
+      icon: User,
+      fields: [
+        {
+          name: "personId",
+          label: "Owner (Person)",
+          type: "select",
+          icon: User,
+          required: true,
+          options: personSelectOptions,
+          helpText: loadingPersons
+            ? "Loading persons…"
+            : persons.length
+              ? "From Person Management. Mobile & name fill automatically."
+              : "No active persons yet — choose “+ Add new Person”.",
+        },
+        {
+          name: "userName",
+          label: "Owner Name",
+          type: "text",
+          icon: User,
+          disabled: true,
+        },
+        {
+          name: "mobile",
+          label: "Owner Mobile",
+          type: "tel",
+          icon: Phone,
+          disabled: true,
+        },
+      ],
+    },
+    {
+      title: "Vehicle & Insurance",
+      description:
+        "All vehicles linked to this owner’s mobile. Select one, then plant the tree.",
+      icon: Car,
+      fields: [
+        {
+          name: "policyNumber",
+          label: "Policy Number",
+          type: "text",
+          icon: ShieldCheck,
+          disabled: true,
+          helpText: "From selected vehicle",
+        },
+        {
+          name: "insuranceStatus",
+          label: "Insurance Status",
+          type: "select",
+          icon: ShieldCheck,
+          disabled: true,
+          options: [
+            { label: "Active", value: "ACTIVE" },
+            { label: "Expired", value: "EXPIRED" },
+            { label: "Not Insured", value: "NOT_INSURED" },
+          ],
+        },
+        {
+          name: "vehicleNumber",
+          label: "Selected Vehicle Number",
+          type: "text",
+          icon: Car,
+          disabled: true,
+          helpText: formData.vehicleNumber
+            ? "Selected from list below"
+            : "Pick a vehicle from the list below",
+        },
+      ],
+      customContent: (
+        <div style={{ marginTop: 8 }}>
+          {!formData.personId ? (
+            <p style={{ margin: 0, fontSize: 13, color: "var(--text-secondary)" }}>
+              Select an Owner first to load their vehicles.
+            </p>
+          ) : loadingOwnerVehicles ? (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                fontSize: 13,
+                color: "var(--text-secondary)",
+              }}
+            >
+              <Loader2 size={16} className="spin" /> Loading vehicles…
+            </div>
+          ) : ownerVehicles.length === 0 ? (
+            <div
+              style={{
+                padding: 12,
+                borderRadius: 8,
+                background: "rgba(255, 61, 0, 0.08)",
+                color: "#c2410c",
+                fontSize: 13,
+              }}
+            >
+              {vehicleLoadMessage ||
+                "No vehicle found for this owner’s mobile in insurance system."}
+            </div>
+          ) : (
+            <>
+              <p
+                style={{
+                  margin: "0 0 10px",
+                  fontSize: 13,
+                  color: "var(--text-secondary)",
+                }}
+              >
+                {vehicleLoadMessage ||
+                  `${ownerVehicles.length} vehicle(s) — select one`}
+              </p>
+              <div
+                style={{
+                  display: "grid",
+                  gap: 8,
+                  maxHeight: 280,
+                  overflowY: "auto",
+                }}
+              >
+                {ownerVehicles.map((v) => {
+                  const selected =
+                    formData.vehicleNumber === v.registrationNumber;
+                  const status = String(
+                    v.policyStatus || "NOT_INSURED",
+                  ).toUpperCase();
+                  return (
+                    <button
+                      key={v.registrationNumber}
+                      type="button"
+                      onClick={() =>
+                        selectOwnerVehicle(String(v.registrationNumber))
+                      }
+                      style={{
+                        textAlign: "left",
+                        padding: "12px 14px",
+                        borderRadius: 10,
+                        border: selected
+                          ? "2px solid #166534"
+                          : "1px solid var(--border-color)",
+                        background: selected
+                          ? "rgba(22, 101, 52, 0.08)"
+                          : "var(--card-bg, #fff)",
+                        cursor: "pointer",
+                        display: "grid",
+                        gap: 4,
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: 8,
+                          alignItems: "center",
+                        }}
+                      >
+                        <strong style={{ fontSize: 14 }}>
+                          {v.registrationNumber}
+                        </strong>
+                        <span
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 700,
+                            padding: "2px 8px",
+                            borderRadius: 999,
+                            background:
+                              status === "ACTIVE"
+                                ? "rgba(22,101,52,0.12)"
+                                : status === "EXPIRED"
+                                  ? "rgba(202,138,4,0.15)"
+                                  : "rgba(100,116,139,0.12)",
+                            color:
+                              status === "ACTIVE"
+                                ? "#166534"
+                                : status === "EXPIRED"
+                                  ? "#a16207"
+                                  : "#475569",
+                          }}
+                        >
+                          {status}
+                        </span>
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: "var(--text-secondary)",
+                        }}
+                      >
+                        {[v.vehicleType, v.vehicleModel, v.policyNumber]
+                          .filter(Boolean)
+                          .join(" · ") || "No policy details"}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      ),
+    },
+    {
       title: "Plantation Land",
       description:
-        "Select State → District, search land, then pick a parcel. District / Vidhan Sabha inherit from the land.",
+        "Select State → District → Vidhan Sabha, then pick a land created under that constituency.",
       icon: Landmark,
       fields: [
         {
@@ -520,6 +1151,21 @@ export const TreeForm = () => {
           optionsFor: (data) => getDistrictOptions(data.state),
         },
         {
+          name: "vidhanSabha",
+          label: "Vidhan Sabha",
+          type: "select",
+          icon: Landmark,
+          required: true,
+          options: vsOptions,
+          helpText: loadingVs
+            ? "Loading Vidhan Sabhas…"
+            : formData.state && formData.district
+              ? vsOptions.length
+                ? `${vsOptions.length} registered VS in ${formData.district}`
+                : "No Vidhan Sabha created for this district yet"
+              : "Pick State and District first",
+        },
+        {
           name: "landSearch",
           label: "Search Land",
           type: "text",
@@ -527,9 +1173,9 @@ export const TreeForm = () => {
           placeholder: "Green Park, khasra, village...",
           helpText: loadingLands
             ? "Loading lands…"
-            : formData.state && formData.district
-              ? `${landOptions.length} land(s) in ${formData.district}`
-              : "Pick State and District first",
+            : formData.vidhanSabha
+              ? `${landOptions.length} land(s) in ${formData.vidhanSabha}`
+              : "Pick Vidhan Sabha first",
         },
         {
           name: "landId",
@@ -539,7 +1185,7 @@ export const TreeForm = () => {
           options: landOptions,
           required: true,
           helpText:
-            "Shows ownership, area, district, remaining capacity. Updates planted count on save.",
+            "Only lands linked to the selected Vidhan Sabha. Shows ownership, area, remaining capacity.",
         },
         {
           name: "landName",
@@ -547,14 +1193,6 @@ export const TreeForm = () => {
           type: "text",
           icon: Landmark,
           disabled: true,
-        },
-        {
-          name: "vidhanSabha",
-          label: "Vidhan Sabha (via land)",
-          type: "text",
-          icon: Landmark,
-          disabled: true,
-          helpText: "Auto from land’s mapped constituency — not selected manually",
         },
         {
           name: "plantationMethod",
@@ -576,73 +1214,23 @@ export const TreeForm = () => {
           placeholder: "Dept / NGO / CSR partner",
         },
         {
-          name: "plantedBy",
-          label: "Plantation By",
-          type: "text",
-          icon: User,
-          placeholder: "Mitra / volunteer / team name",
-        },
-      ],
-    },
-    {
-      title: "Owner Details",
-      description: "Who this tree is registered to.",
-      icon: User,
-      fields: [
-        {
-          name: "userId",
-          label: "User ID",
-          type: "text",
-          icon: Hash,
-          required: true,
-          helpText:
-            "Auto-filled when a matching user is found by mobile search.",
-        },
-        {
-          name: "userName",
-          label: "User Name",
-          type: "text",
-          icon: User,
-          required: true,
-        },
-      ],
-    },
-    {
-      title: "Vehicle & Insurance",
-      description:
-        "Optional vehicle and insurance linkage for this plantation record.",
-      icon: Car,
-      fields: [
-        {
-          name: "vehicleNumber",
-          label: "Vehicle Number",
-          type: "text",
-          icon: Car,
-          placeholder: "e.g., MP09ZK5863",
-        },
-        {
-          name: "policyNumber",
-          label: "Policy Number",
-          type: "text",
-          icon: ShieldCheck,
-        },
-        {
-          name: "insuranceStatus",
-          label: "Insurance Status",
+          name: "assignedMitraId",
+          label: "Plantation By (Mitra)",
           type: "select",
-          icon: ShieldCheck,
-          options: [
-            { label: "Active", value: "ACTIVE" },
-            { label: "Expired", value: "EXPIRED" },
-            { label: "Not Insured", value: "NOT_INSURED" },
-          ],
+          icon: User,
+          options: mitraSelectOptions,
+          helpText: loadingMitras
+            ? "Loading Mitras…"
+            : mitras.length
+              ? "Approved Paryavaran Mitras. Choose “+ Add new Mitra” to create one here."
+              : "No approved Mitras yet — choose “+ Add new Mitra”.",
         },
       ],
     },
     {
       title: "Exact Planting Spot",
       description:
-        "Optional pin for the tree itself. State/District come from the selected land.",
+        "Optional pin for the tree itself. State / District / Vidhan Sabha come from the selection above.",
       icon: MapPin,
       fields: [
         {
@@ -683,33 +1271,6 @@ export const TreeForm = () => {
         subtitle="O₂ production is estimated automatically from species, age and size."
         onBack={() => navigate("/trees")}
       />
-
-      <div className="card" style={{ padding: "20px", marginBottom: "16px" }}>
-        <div className="form-group" style={{ marginBottom: 0 }}>
-          <label>
-            Search Owner by Mobile Number{" "}
-            <span style={{ color: "red" }}>*</span>
-          </label>
-          <div style={{ display: "flex", gap: "8px" }}>
-            <input
-              type="text"
-              value={formData.mobile}
-              onChange={(e) => handleFieldChange("mobile", e.target.value)}
-              placeholder="Enter owner's 10-digit mobile number"
-              style={{ flex: 1 }}
-            />
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={handleSearchUser}
-              disabled={searching}
-            >
-              <Search size={16} /> {searching ? "Searching..." : "Search"}
-            </button>
-          </div>
-          {searchMessage && <span className="ff-help">{searchMessage}</span>}
-        </div>
-      </div>
 
       <div
         className="card"
@@ -762,6 +1323,176 @@ export const TreeForm = () => {
           onCancel={() => navigate("/trees")}
         />
       </div>
+
+      {showAddMitra && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1200,
+            background: "rgba(12, 28, 18, 0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+          onClick={() => !addingMitra && setShowAddMitra(false)}
+        >
+          <div
+            className="card"
+            style={{
+              width: "min(440px, 100%)",
+              padding: 20,
+              boxShadow: "0 20px 50px rgba(0,0,0,0.25)",
+            }}
+            onClick={(ev) => ev.stopPropagation()}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "flex-start",
+                marginBottom: 14,
+              }}
+            >
+              <div>
+                <h3 style={{ margin: 0, fontSize: 18 }}>Add Paryavaran Mitra</h3>
+                <p
+                  style={{
+                    margin: "4px 0 0",
+                    fontSize: 13,
+                    color: "var(--text-secondary)",
+                  }}
+                >
+                  Quick create — saved as Approved and selected as Plantation By.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={() => setShowAddMitra(false)}
+                disabled={addingMitra}
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form
+              onSubmit={handleCreateMitra}
+              style={{ display: "grid", gap: 12 }}
+            >
+              <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
+                Full Name *
+                <div style={{ position: "relative" }}>
+                  <User
+                    size={16}
+                    style={{
+                      position: "absolute",
+                      left: 10,
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      opacity: 0.5,
+                    }}
+                  />
+                  <input
+                    required
+                    value={newMitra.name}
+                    onChange={(e) =>
+                      setNewMitra((p) => ({ ...p, name: e.target.value }))
+                    }
+                    placeholder="Mitra name"
+                    style={{
+                      width: "100%",
+                      height: 40,
+                      padding: "0 12px 0 34px",
+                      borderRadius: 8,
+                      border: "1px solid var(--border-color)",
+                    }}
+                  />
+                </div>
+              </label>
+              <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
+                Mobile *
+                <div style={{ position: "relative" }}>
+                  <Phone
+                    size={16}
+                    style={{
+                      position: "absolute",
+                      left: 10,
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      opacity: 0.5,
+                    }}
+                  />
+                  <input
+                    required
+                    type="tel"
+                    value={newMitra.mobile}
+                    onChange={(e) =>
+                      setNewMitra((p) => ({ ...p, mobile: e.target.value }))
+                    }
+                    placeholder="10-digit mobile"
+                    style={{
+                      width: "100%",
+                      height: 40,
+                      padding: "0 12px 0 34px",
+                      borderRadius: 8,
+                      border: "1px solid var(--border-color)",
+                    }}
+                  />
+                </div>
+              </label>
+
+              {(formData.district || formData.vidhanSabha) && (
+                <p style={{ margin: 0, fontSize: 12, color: "var(--text-secondary)" }}>
+                  Will also save:{" "}
+                  {[formData.state, formData.district, formData.vidhanSabha]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
+              )}
+
+              {addMitraError && (
+                <div
+                  style={{
+                    background: "rgba(255, 61, 0, 0.1)",
+                    color: "#ff3d00",
+                    padding: 10,
+                    borderRadius: 8,
+                    fontSize: 13,
+                  }}
+                >
+                  {addMitraError}
+                </div>
+              )}
+
+              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setShowAddMitra(false)}
+                  disabled={addingMitra}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  disabled={addingMitra}
+                >
+                  {addingMitra ? (
+                    <Loader2 size={16} className="spin" />
+                  ) : (
+                    <Plus size={16} />
+                  )}
+                  Create & Select
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

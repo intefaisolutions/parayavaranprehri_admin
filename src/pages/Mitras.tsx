@@ -17,6 +17,9 @@ interface Mitra {
   assignedZone?: string;
   district?: string;
   state?: string;
+  landName?: string;
+  treeAssignment?: string;
+  assignedTreeName?: string;
   membership: string;
   status: string;
   source?: string;
@@ -100,7 +103,29 @@ export const MitrasView = () => {
     { accessorKey: "name", header: "Name", enableSorting: true },
     { accessorKey: "mobile", header: "Mobile", enableSorting: true },
     { accessorKey: "vidhanSabha", header: "Vidhan Sabha", enableSorting: true },
-    { accessorKey: "assignedZone", header: "Assigned Zone", enableSorting: true },
+    {
+      id: "assignment",
+      header: "Land / Tree",
+      cell: ({ row }) => {
+        const land = row.original.landName || "—";
+        const mode = row.original.treeAssignment || "NONE";
+        const tree =
+          mode === "ALL"
+            ? "All trees"
+            : mode === "SINGLE"
+              ? row.original.assignedTreeName || "1 tree"
+              : "VS only";
+        return (
+          <div style={{ fontSize: 13 }}>
+            <div>{land}</div>
+            <div style={{ color: "var(--text-secondary)", fontSize: 12 }}>
+              {tree}
+            </div>
+          </div>
+        );
+      },
+      enableSorting: false,
+    },
     { accessorKey: "treesPlanted", header: "Trees Planted", enableSorting: true },
     {
       accessorKey: "source",

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { User, Phone, QrCode, Calendar, ShieldCheck, Car, IdCard } from "lucide-react";
 import { apiFetch } from "../../utils/apiConfig";
@@ -23,6 +23,8 @@ interface PersonOption {
   _id: string;
   name: string;
   mobile: string;
+  photo?: string;
+  status?: string;
 }
 
 const emptyForm: IdentityFormData = {
@@ -50,27 +52,74 @@ export const IdentityForm = () => {
       ? {
           ...emptyForm,
           ...editIdentity,
-          person: editIdentity.person || "",
+          person:
+            typeof editIdentity.person === "object"
+              ? editIdentity.person?._id || ""
+              : editIdentity.person || "",
           generatedDate: toDateInputValue(editIdentity.generatedDate),
         }
-      : emptyForm
+      : emptyForm,
   );
 
-  const [personOptions, setPersonOptions] = useState<SelectOption[]>([]);
+  const [persons, setPersons] = useState<PersonOption[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    apiFetch<PersonOption[]>("/api/v1/persons?limit=500")
-      .then((data) =>
-        setPersonOptions((data || []).map((p) => ({ label: `${p.name} (${p.mobile})`, value: p._id })))
-      )
-      .catch(() => {
-        // Non-critical: the form still works without the person picker.
-      });
+    const params = new URLSearchParams({
+      limit: "500",
+      sortBy: "name",
+      sortOrder: "asc",
+      status: "Active",
+    });
+    apiFetch<PersonOption[]>(`/api/v1/persons?${params.toString()}`)
+      .then((data) => setPersons(Array.isArray(data) ? data : []))
+      .catch(() => setPersons([]));
   }, []);
 
+  const personOptions: SelectOption[] = useMemo(() => {
+    const opts = persons.map((p) => ({
+      label: `${p.name} (${p.mobile})`,
+      value: p._id,
+    }));
+    if (
+      formData.person &&
+      !opts.some((o) => o.value === formData.person)
+    ) {
+      opts.unshift({
+        label: formData.personName
+          ? `${formData.personName}${
+              formData.personMobile ? ` (${formData.personMobile})` : ""
+            }`
+          : formData.person,
+        value: formData.person,
+      });
+    }
+    return opts;
+  }, [persons, formData.person, formData.personName, formData.personMobile]);
+
   const handleFieldChange = (name: string, value: any) => {
+    if (name === "person") {
+      if (!value) {
+        setFormData((prev) => ({
+          ...prev,
+          person: "",
+          personName: "",
+          personMobile: "",
+          photo: "",
+        }));
+        return;
+      }
+      const person = persons.find((p) => p._id === value);
+      setFormData((prev) => ({
+        ...prev,
+        person: value,
+        personName: person?.name || prev.personName,
+        personMobile: person?.mobile || "",
+        photo: person?.photo || "",
+      }));
+      return;
+    }
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -106,16 +155,54 @@ export const IdentityForm = () => {
     }
   };
 
+  const linked = !!formData.person;
+
   const sections: FormSectionConfig[] = [
     {
       title: "Person Link",
-      description: "Link this identity card to a registered person (optional).",
+      description:
+        "Select a registered person — name, mobile and photo fill automatically.",
       icon: User,
       fields: [
-        { name: "person", label: "Registered Person", type: "select", icon: User, options: personOptions, span: 2 },
-        { name: "personName", label: "Person Name", type: "text", icon: User, required: true },
-        { name: "personMobile", label: "Person Mobile", type: "tel", icon: Phone },
-        { name: "photo", label: "Photo", type: "image", icon: User, uploadCategory: "users", span: 2 },
+        {
+          name: "person",
+          label: "Registered Person",
+          type: "select",
+          icon: User,
+          options: personOptions,
+          span: 2,
+          helpText: persons.length
+            ? "From Person Management"
+            : "No active persons found — add one under Person Management first",
+        },
+        {
+          name: "personName",
+          label: "Person Name",
+          type: "text",
+          icon: User,
+          required: true,
+          disabled: linked,
+          helpText: linked ? "Auto from registered person" : undefined,
+        },
+        {
+          name: "personMobile",
+          label: "Person Mobile",
+          type: "tel",
+          icon: Phone,
+          disabled: linked,
+          helpText: linked ? "Auto from registered person" : undefined,
+        },
+        {
+          name: "photo",
+          label: "Photo",
+          type: "image",
+          icon: User,
+          uploadCategory: "users",
+          span: 2,
+          helpText: linked
+            ? "Auto from person profile photo — you can replace if needed"
+            : "Upload or paste a photo URL",
+        },
       ],
     },
     {
@@ -133,7 +220,12 @@ export const IdentityForm = () => {
             { label: "Pending", value: "Pending" },
           ],
         },
-        { name: "generatedDate", label: "Generated Date", type: "date", icon: Calendar },
+        {
+          name: "generatedDate",
+          label: "Generated Date",
+          type: "date",
+          icon: Calendar,
+        },
         {
           name: "status",
           label: "Status",
@@ -161,9 +253,17 @@ export const IdentityForm = () => {
       {isEditing && formData.identityId && (
         <div
           className="card"
-          style={{ marginBottom: 16, fontSize: 13, color: "var(--text-secondary)", padding: "10px 16px" }}
+          style={{
+            marginBottom: 16,
+            fontSize: 13,
+            color: "var(--text-secondary)",
+            padding: "10px 16px",
+          }}
         >
-          Identity ID: <strong style={{ color: "var(--text-primary)" }}>{formData.identityId}</strong>
+          Identity ID:{" "}
+          <strong style={{ color: "var(--text-primary)" }}>
+            {formData.identityId}
+          </strong>
         </div>
       )}
 

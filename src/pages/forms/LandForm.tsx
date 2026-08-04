@@ -212,14 +212,22 @@ export const LandForm = () => {
       sortBy: "vidhanSabhaName",
       sortOrder: "asc",
       district: formData.district,
-      status: "Active",
     });
-    if (formData.state) params.set("state", formData.state);
 
     apiFetch<RegisteredVidhanSabha[]>(
       `/api/v1/vidhan-sabhas?${params.toString()}`,
     )
-      .then((rows) => setRegisteredVs(Array.isArray(rows) ? rows : []))
+      .then((rows) => {
+        let items = Array.isArray(rows) ? rows : [];
+        if (formData.state) {
+          const stateLc = formData.state.toLowerCase();
+          const byState = items.filter(
+            (v) => !v.state || String(v.state).toLowerCase() === stateLc,
+          );
+          if (byState.length) items = byState;
+        }
+        setRegisteredVs(items);
+      })
       .catch(() => setRegisteredVs([]));
   }, [formData.state, formData.district]);
 
