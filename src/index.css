@@ -756,6 +756,24 @@ button {
   border: 1px solid rgba(0, 230, 118, 0.2);
 }
 
+.status-boundary-yes {
+  background: rgba(43, 150, 79, 0.12);
+  color: #126e35;
+  border: 1px solid rgba(43, 150, 79, 0.28);
+}
+
+.status-boundary-no {
+  background: rgba(220, 53, 69, 0.1);
+  color: #b02a37;
+  border: 1px solid rgba(220, 53, 69, 0.25);
+}
+
+.status-pending-soft {
+  background: rgba(245, 158, 11, 0.12);
+  color: #b45309;
+  border: 1px solid rgba(245, 158, 11, 0.28);
+}
+
 /* Activity Feed */
 .activity-item {
   display: flex;

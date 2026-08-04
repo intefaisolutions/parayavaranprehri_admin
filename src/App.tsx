@@ -28,6 +28,7 @@ import { TaskForm } from "./pages/forms/TaskForm";
 
 import { VidhanSabhaView } from "./pages/VidhanSabha";
 import { VidhanSabhaForm } from "./pages/forms/VidhanSabhaForm";
+import { VidhanSabhaDetailView } from "./pages/forms/VidhanSabhaView";
 
 import { LocationView } from "./pages/LocationMaster";
 import { LocationForm } from "./pages/forms/LocationForm";
@@ -182,6 +183,7 @@ function App() {
           <Route path="/vidhansabha" element={<VidhanSabhaView />} />
           <Route path="/vidhansabha/add" element={<VidhanSabhaForm />} />
           <Route path="/vidhansabha/edit" element={<VidhanSabhaForm />} />
+          <Route path="/vidhansabha/view" element={<VidhanSabhaDetailView />} />
 
           <Route path="/location" element={<LocationView />} />
           <Route path="/location/add" element={<LocationForm />} />
