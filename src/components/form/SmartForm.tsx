@@ -240,9 +240,25 @@ const SmartField: React.FC<SmartFieldProps> = ({ field, value, onChange }) => {
 
   const control = (() => {
     if (type === "select") {
+      // Always include a blank option. Without it, browsers visually show the
+      // first option (e.g. "Agar Malwa") while the controlled value stays "",
+      // so required validation fails even though the UI looks selected.
+      const selected = value ?? "";
+      const hasSelectedOption =
+        selected !== "" &&
+        !!options?.some((opt) => String(opt.value) === String(selected));
+
       return (
-        <select name={name} value={value ?? ""} onChange={handle} disabled={disabled} required={required}>
-          {!required && <option value="">-- Select --</option>}
+        <select
+          name={name}
+          value={hasSelectedOption ? selected : ""}
+          onChange={handle}
+          disabled={disabled}
+          required={required}
+        >
+          <option value="" disabled={required}>
+            -- Select --
+          </option>
           {options?.map((opt) => (
             <option key={opt.value} value={opt.value}>
               {opt.label}

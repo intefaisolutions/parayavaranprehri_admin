@@ -311,8 +311,8 @@ export const BoundaryMapEditor: React.FC<BoundaryMapEditorProps> = ({
       <div className="boundary-editor-toolbar">
         <div className="boundary-editor-toolbar-left">
           <span className="boundary-editor-hint">
-            Select district → map zooms there. Auto Load boundary, or Draw /
-            Edit like Google Maps. Use map toolbar (top-right) to finish edits.
+            Select district → map zooms. Auto Load uses saved DB / local VS
+            GeoJSON dataset (not OpenStreetMap). If not found, Draw Polygon.
           </span>
         </div>
         <div className="boundary-editor-toolbar-right">
@@ -336,7 +336,7 @@ export const BoundaryMapEditor: React.FC<BoundaryMapEditorProps> = ({
             ) : (
               <RefreshCw size={15} style={{ marginRight: 6 }} />
             )}
-            Auto Load Boundary
+            Load Boundary
           </button>
           <button
             type="button"

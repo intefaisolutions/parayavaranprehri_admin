@@ -20,16 +20,28 @@ import {
   type AreaUnit,
 } from "../../utils/landCapacity";
 import {
-  COUNTRY_OPTIONS,
-  getDistrictOptions,
-  getStateOptions,
-} from "../../utils/indiaLocations";
-import {
   mergeLocationAutoFill,
   reverseGeocodeLocation,
 } from "../../utils/locationAutoFill";
+import {
+  fetchCountries,
+  fetchDistricts,
+  fetchStates,
+} from "../../utils/geoCatalog";
+
+type RegisteredVidhanSabha = {
+  _id: string;
+  vidhanSabhaName: string;
+  masterId?: string;
+  district?: string;
+  state?: string;
+  status?: string;
+};
 import { SmartForm } from "../../components/form/SmartForm";
-import type { FormSectionConfig } from "../../components/form/SmartForm";
+import type {
+  FormSectionConfig,
+  SelectOption,
+} from "../../components/form/SmartForm";
 import { FormPageHeader } from "../../components/form/FormPageHeader";
 import { LocationPickerModal } from "../../components/map/LocationPickerModal";
 
@@ -49,7 +61,9 @@ interface LandFormData {
   landAddress: string;
   landmark: string;
   pinCode: string;
+  masterId: string;
   vidhanSabha: string;
+  vidhanSabhaId: string;
   khasraNumber: string;
   totalArea: number | "";
   areaUnit: AreaUnit;
@@ -77,7 +91,9 @@ const emptyForm: LandFormData = {
   landAddress: "",
   landmark: "",
   pinCode: "",
+  masterId: "",
   vidhanSabha: "",
+  vidhanSabhaId: "",
   khasraNumber: "",
   totalArea: "",
   areaUnit: "ACRE",
@@ -106,7 +122,11 @@ export const LandForm = () => {
           landAddress: editLand.landAddress || "",
           landmark: editLand.landmark || "",
           pinCode: editLand.pinCode || "",
+          masterId: editLand.masterId || "",
           vidhanSabha: editLand.vidhanSabha || "",
+          vidhanSabhaId: editLand.vidhanSabhaId
+            ? String(editLand.vidhanSabhaId)
+            : "",
           totalArea: editLand.totalArea ?? "",
           maxTreeCapacity: editLand.maxTreeCapacity ?? "",
           latitude: editLand.latitude ?? "",
@@ -120,11 +140,35 @@ export const LandForm = () => {
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [mapOpen, setMapOpen] = useState(false);
+  const [countryOptions, setCountryOptions] = useState<SelectOption[]>([]);
+  const [stateOptions, setStateOptions] = useState<SelectOption[]>([]);
+  const [districtOptions, setDistrictOptions] = useState<SelectOption[]>([]);
+  const [registeredVs, setRegisteredVs] = useState<RegisteredVidhanSabha[]>(
+    [],
+  );
 
   const recommended = useMemo(() => {
     const area = formData.totalArea === "" ? 0 : Number(formData.totalArea);
     return recommendMaxTreeCapacity(area, formData.areaUnit);
   }, [formData.totalArea, formData.areaUnit]);
+
+  const vsOptions: SelectOption[] = useMemo(() => {
+    const opts = registeredVs.map((v) => ({
+      label: v.vidhanSabhaName,
+      value: String(v._id),
+    }));
+    // Keep current selection visible when editing even if filters differ
+    if (
+      formData.vidhanSabhaId &&
+      !opts.some((o) => o.value === formData.vidhanSabhaId)
+    ) {
+      opts.unshift({
+        label: formData.vidhanSabha || formData.vidhanSabhaId,
+        value: formData.vidhanSabhaId,
+      });
+    }
+    return opts;
+  }, [registeredVs, formData.vidhanSabhaId, formData.vidhanSabha]);
 
   useEffect(() => {
     if (!formData.maxCapacityManual) {
@@ -135,6 +179,50 @@ export const LandForm = () => {
     }
   }, [recommended, formData.maxCapacityManual]);
 
+  useEffect(() => {
+    fetchCountries()
+      .then(setCountryOptions)
+      .catch(() => setCountryOptions([{ label: "India", value: "India" }]));
+  }, []);
+
+  useEffect(() => {
+    if (!formData.country) return;
+    fetchStates(formData.country)
+      .then(setStateOptions)
+      .catch(() => setStateOptions([]));
+  }, [formData.country]);
+
+  useEffect(() => {
+    if (!formData.state) {
+      setDistrictOptions([]);
+      return;
+    }
+    fetchDistricts(formData.state, formData.country)
+      .then(setDistrictOptions)
+      .catch(() => setDistrictOptions([]));
+  }, [formData.state, formData.country]);
+
+  useEffect(() => {
+    if (!formData.district) {
+      setRegisteredVs([]);
+      return;
+    }
+    const params = new URLSearchParams({
+      limit: "200",
+      sortBy: "vidhanSabhaName",
+      sortOrder: "asc",
+      district: formData.district,
+      status: "Active",
+    });
+    if (formData.state) params.set("state", formData.state);
+
+    apiFetch<RegisteredVidhanSabha[]>(
+      `/api/v1/vidhan-sabhas?${params.toString()}`,
+    )
+      .then((rows) => setRegisteredVs(Array.isArray(rows) ? rows : []))
+      .catch(() => setRegisteredVs([]));
+  }, [formData.state, formData.district]);
+
   const handleFieldChange = (name: string, value: any) => {
     setFormData((prev) => {
       if (name === "maxTreeCapacity") {
@@ -144,8 +232,44 @@ export const LandForm = () => {
           maxCapacityManual: true,
         };
       }
+      if (name === "country") {
+        return {
+          ...prev,
+          country: value,
+          state: "",
+          district: "",
+          masterId: "",
+          vidhanSabha: "",
+          vidhanSabhaId: "",
+        };
+      }
       if (name === "state") {
-        return { ...prev, state: value, district: "" };
+        return {
+          ...prev,
+          state: value,
+          district: "",
+          masterId: "",
+          vidhanSabha: "",
+          vidhanSabhaId: "",
+        };
+      }
+      if (name === "district") {
+        return {
+          ...prev,
+          district: value,
+          masterId: "",
+          vidhanSabha: "",
+          vidhanSabhaId: "",
+        };
+      }
+      if (name === "vidhanSabhaId") {
+        const hit = registeredVs.find((v) => String(v._id) === value);
+        return {
+          ...prev,
+          vidhanSabhaId: value,
+          vidhanSabha: hit?.vidhanSabhaName || prev.vidhanSabha,
+          masterId: hit?.masterId || "",
+        };
       }
       return { ...prev, [name]: value };
     });
@@ -229,8 +353,10 @@ export const LandForm = () => {
       mobile: formData.mobile || undefined,
       tehsil: formData.tehsil || undefined,
       remarks: formData.remarks || undefined,
+      masterId: formData.masterId || undefined,
+      vidhanSabha: formData.vidhanSabha || undefined,
+      vidhanSabhaId: formData.vidhanSabhaId || undefined,
     };
-    delete (payload as any).vidhanSabha;
 
     try {
       if (isEditing && editLand._id) {
@@ -422,7 +548,7 @@ export const LandForm = () => {
           type: "select",
           icon: Globe2,
           required: true,
-          options: COUNTRY_OPTIONS,
+          options: countryOptions,
         },
         {
           name: "state",
@@ -430,7 +556,7 @@ export const LandForm = () => {
           type: "select",
           icon: MapPin,
           required: true,
-          options: getStateOptions(),
+          options: stateOptions,
         },
         {
           name: "district",
@@ -438,7 +564,17 @@ export const LandForm = () => {
           type: "select",
           icon: Landmark,
           required: true,
-          optionsFor: (data) => getDistrictOptions(data.state),
+          options: districtOptions,
+        },
+        {
+          name: "vidhanSabhaId",
+          label: "Vidhan Sabha",
+          type: "select",
+          icon: Landmark,
+          options: vsOptions,
+          helpText: vsOptions.length
+            ? "Only Vidhan Sabhas already created in Location Masters for this district."
+            : "No Vidhan Sabha created for this district yet. Create one under Location Masters → Vidhan Sabha.",
         },
         {
           name: "tehsil",
@@ -453,14 +589,6 @@ export const LandForm = () => {
           type: "text",
           icon: MapPin,
           placeholder: "e.g. Gyaraspur",
-        },
-        {
-          name: "vidhanSabha",
-          label: "Vidhan Sabha",
-          type: "text",
-          icon: Landmark,
-          helpText:
-            "Auto-detected from polygon when coordinates fall inside a boundary. Remapped on save from lat/lng.",
         },
       ],
     },

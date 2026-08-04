@@ -33,7 +33,6 @@ import { VidhanSabhaDetailView } from "./pages/forms/VidhanSabhaView";
 import { LocationView } from "./pages/LocationMaster";
 import { LocationForm } from "./pages/forms/LocationForm";
 import { MapView } from "./pages/MapManagement";
-import { MapRecordForm } from "./pages/forms/MapRecordForm";
 import { NewsView } from "./pages/NewsManagement";
 import { NewsForm } from "./pages/forms/NewsForm";
 import { MediaView } from "./pages/MediaManagement";
@@ -189,8 +188,8 @@ function App() {
           <Route path="/location/add" element={<LocationForm />} />
           <Route path="/location/edit" element={<LocationForm />} />
           <Route path="/map" element={<MapView />} />
-          <Route path="/map/add" element={<MapRecordForm />} />
-          <Route path="/map/edit" element={<MapRecordForm />} />
+          <Route path="/map/add" element={<Navigate to="/map" replace />} />
+          <Route path="/map/edit" element={<Navigate to="/map" replace />} />
 
           <Route path="/news" element={<NewsView />} />
           <Route path="/news/add" element={<NewsForm />} />

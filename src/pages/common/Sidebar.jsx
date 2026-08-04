@@ -49,7 +49,6 @@ const menuSections = [
     hint: "Create these first",
     items: [
       { id: "vidhansabha", icon: Building, label: "Vidhan Sabha" },
-      { id: "map", icon: Map, label: "Map Management" },
     ],
   },
   {
@@ -58,6 +57,7 @@ const menuSections = [
     items: [
       { id: "lands", icon: MapPinned, label: "Land Management" },
       { id: "tree-masters", icon: Leaf, label: "Tree Master Catalog" },
+      { id: "map", icon: Map, label: "Plantation Map" },
     ],
   },
   {

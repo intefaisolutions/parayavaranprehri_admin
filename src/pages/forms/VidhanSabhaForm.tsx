@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   Building,
@@ -12,23 +12,31 @@ import {
 } from "lucide-react";
 import { apiFetch } from "../../utils/apiConfig";
 import { SmartForm } from "../../components/form/SmartForm";
-import type { FormSectionConfig } from "../../components/form/SmartForm";
+import type {
+  FormSectionConfig,
+  SelectOption,
+} from "../../components/form/SmartForm";
 import { FormPageHeader } from "../../components/form/FormPageHeader";
 import {
   BoundaryMapEditor,
   type GeoBoundary,
 } from "../../components/map/BoundaryMapEditor";
 import {
-  COUNTRY_OPTIONS,
-  getDistrictOptions,
-  getStateOptions,
-} from "../../utils/indiaLocations";
+  fetchConstituencies,
+  fetchConstituencyBoundary,
+  fetchCountries,
+  fetchDistricts,
+  fetchStates,
+  type GeoConstituency,
+} from "../../utils/geoCatalog";
+import { getLocationCenter } from "../../utils/locationCenters";
 
 interface VidhanSabhaFormData {
   _id?: string;
   country: string;
   state: string;
   district: string;
+  masterId: string;
   vidhanSabhaName: string;
   assignedAdmin: string;
   status: "Active" | "Inactive";
@@ -48,6 +56,7 @@ const emptyForm: VidhanSabhaFormData = {
   country: "India",
   state: "Madhya Pradesh",
   district: "",
+  masterId: "",
   vidhanSabhaName: "",
   assignedAdmin: "",
   status: "Active",
@@ -65,36 +74,6 @@ function asGeoBoundary(raw: unknown): GeoBoundary | null {
   return null;
 }
 
-async function geocodePlace(
-  query: string,
-): Promise<{ lat: number; lng: number } | null> {
-  const url = new URL("https://nominatim.openstreetmap.org/search");
-  url.searchParams.set("q", query);
-  url.searchParams.set("format", "json");
-  url.searchParams.set("limit", "1");
-  url.searchParams.set("countrycodes", "in");
-  url.searchParams.set("accept-language", "en");
-
-  const res = await fetch(url.toString(), {
-    headers: {
-      Accept: "application/json",
-      "User-Agent": "ParyavaranPrahriAdmin/1.0 (vs-boundary-focus)",
-    },
-  });
-  if (!res.ok) return null;
-  const rows = (await res.json()) as Array<{ lat: string; lon: string }>;
-  if (!rows[0]) return null;
-  return { lat: Number(rows[0].lat), lng: Number(rows[0].lon) };
-}
-
-type BoundaryLookupResponse = {
-  name?: string;
-  boundary: GeoBoundary;
-  center?: { lat: number; lng: number };
-  message?: string;
-  source?: string;
-};
-
 export const VidhanSabhaForm = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -106,6 +85,13 @@ export const VidhanSabhaForm = () => {
     asGeoBoundary(editEntry?.boundary),
   );
   const [boundaryCleared, setBoundaryCleared] = useState(false);
+  const [boundaryHint, setBoundaryHint] = useState("");
+  const [loadingBoundary, setLoadingBoundary] = useState(false);
+
+  const [countryOptions, setCountryOptions] = useState<SelectOption[]>([]);
+  const [stateOptions, setStateOptions] = useState<SelectOption[]>([]);
+  const [districtOptions, setDistrictOptions] = useState<SelectOption[]>([]);
+  const [constituencies, setConstituencies] = useState<GeoConstituency[]>([]);
 
   const formatOxygen = (kg?: number) => {
     const value = Number(kg || 0);
@@ -122,7 +108,9 @@ export const VidhanSabhaForm = () => {
       ? {
           ...emptyForm,
           ...editEntry,
-          country: "India",
+          country: editEntry.country || "India",
+          masterId: editEntry.masterId || "",
+          vidhanSabhaName: editEntry.vidhanSabhaName || "",
           totalOxygenDisplay:
             editEntry.estimatedOxygenTonsPerYear != null
               ? `${editEntry.estimatedOxygenTonsPerYear} tonnes/year`
@@ -131,10 +119,131 @@ export const VidhanSabhaForm = () => {
       : emptyForm,
   );
 
+  const vsOptions: SelectOption[] = useMemo(() => {
+    const opts = constituencies.map((c) => ({
+      label: c.hasBoundary === false ? `${c.name} (no boundary)` : c.name,
+      value: c.id,
+    }));
+    if (
+      formData.masterId &&
+      !opts.some((o) => o.value === formData.masterId)
+    ) {
+      opts.unshift({
+        label: `${formData.vidhanSabhaName || formData.masterId} (saved)`,
+        value: formData.masterId,
+      });
+    }
+    return opts;
+  }, [constituencies, formData.masterId, formData.vidhanSabhaName]);
+
+  useEffect(() => {
+    fetchCountries()
+      .then(setCountryOptions)
+      .catch(() => setCountryOptions([{ label: "India", value: "India" }]));
+  }, []);
+
+  useEffect(() => {
+    if (!formData.country) return;
+    fetchStates(formData.country)
+      .then(setStateOptions)
+      .catch(() => setStateOptions([]));
+  }, [formData.country]);
+
+  useEffect(() => {
+    if (!formData.state) {
+      setDistrictOptions([]);
+      return;
+    }
+    fetchDistricts(formData.state, formData.country)
+      .then(setDistrictOptions)
+      .catch(() => setDistrictOptions([]));
+  }, [formData.state, formData.country]);
+
+  useEffect(() => {
+    if (!formData.district) {
+      setConstituencies([]);
+      return;
+    }
+    fetchConstituencies(formData.state, formData.district, formData.country)
+      .then(setConstituencies)
+      .catch(() => setConstituencies([]));
+  }, [formData.state, formData.district, formData.country]);
+
+  const handleLoadBoundary = async () => {
+    if (!formData.masterId) {
+      setBoundaryHint("Select a Vidhan Sabha first");
+      return;
+    }
+    setLoadingBoundary(true);
+    setBoundaryHint("Loading boundary…");
+    try {
+      const data = await fetchConstituencyBoundary(formData.masterId);
+      setBoundary(data.boundary);
+      setBoundaryCleared(false);
+      setBoundaryHint(data.message || "Boundary loaded. Edit if needed, then save.");
+    } catch (err: unknown) {
+      setBoundaryHint(
+        err instanceof Error
+          ? err.message
+          : "Boundary not found — draw polygon manually.",
+      );
+    } finally {
+      setLoadingBoundary(false);
+    }
+  };
+
   const handleFieldChange = (name: string, value: any) => {
     setFormData((prev) => {
+      if (name === "country") {
+        setBoundary(null);
+        setBoundaryCleared(true);
+        setBoundaryHint("");
+        return {
+          ...prev,
+          country: value,
+          state: "",
+          district: "",
+          masterId: "",
+          vidhanSabhaName: "",
+        };
+      }
       if (name === "state") {
-        return { ...prev, state: value, district: "" };
+        setBoundary(null);
+        setBoundaryCleared(true);
+        setBoundaryHint("");
+        return {
+          ...prev,
+          state: value,
+          district: "",
+          masterId: "",
+          vidhanSabhaName: "",
+        };
+      }
+      if (name === "district") {
+        setBoundary(null);
+        setBoundaryCleared(true);
+        setBoundaryHint("");
+        return {
+          ...prev,
+          district: value,
+          masterId: "",
+          vidhanSabhaName: "",
+        };
+      }
+      if (name === "masterId") {
+        const hit = constituencies.find((c) => c.id === value);
+        setBoundary(null);
+        setBoundaryCleared(true);
+        setBoundaryHint(
+          hit
+            ? "Click Load Boundary to show the polygon on the map."
+            : "",
+        );
+        return {
+          ...prev,
+          masterId: value,
+          vidhanSabhaName: hit?.name || prev.vidhanSabhaName,
+        };
       }
       return { ...prev, [name]: value };
     });
@@ -143,6 +252,7 @@ export const VidhanSabhaForm = () => {
   const handleBoundaryChange = (next: GeoBoundary | null) => {
     setBoundary(next);
     setBoundaryCleared(next === null);
+    if (next === null) setBoundaryHint("Boundary cleared");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -157,8 +267,8 @@ export const VidhanSabhaForm = () => {
       setError("Please select a District");
       return;
     }
-    if (!formData.vidhanSabhaName.trim()) {
-      setError("Please enter the Vidhan Sabha name");
+    if (!formData.masterId && !formData.vidhanSabhaName.trim()) {
+      setError("Please select a Vidhan Sabha");
       return;
     }
 
@@ -166,7 +276,6 @@ export const VidhanSabhaForm = () => {
 
     const {
       _id,
-      country: _country,
       totalPersons: _totalPersons,
       totalVehicles: _totalVehicles,
       totalTrees: _totalTrees,
@@ -181,14 +290,18 @@ export const VidhanSabhaForm = () => {
     } = formData as any;
 
     const payload: Record<string, unknown> = {
-      ...rest,
+      masterId: formData.masterId || undefined,
+      vidhanSabhaName: formData.vidhanSabhaName,
       country: formData.country || "India",
+      state: formData.state,
+      district: formData.district,
+      assignedAdmin: formData.assignedAdmin || undefined,
+      status: formData.status,
     };
 
     if (boundary) {
       payload.boundary = boundary;
     } else if (boundaryCleared && editEntry?._id) {
-      // Explicit clear on edit — send null so backend can unset
       payload.boundary = null;
     }
 
@@ -214,46 +327,72 @@ export const VidhanSabhaForm = () => {
 
   const boundarySection = useMemo(
     () => (
-      <BoundaryMapEditor
-        boundary={boundary}
-        onChange={handleBoundaryChange}
-        country={formData.country}
-        state={formData.state}
-        district={formData.district}
-        name={formData.vidhanSabhaName}
-        onFocusPlace={async () => {
-          if (!formData.district) return null;
-          const q = [formData.district, formData.state, "India"]
-            .filter(Boolean)
-            .join(", ");
-          return geocodePlace(q);
-        }}
-        onAutoLoad={async () => {
-          const params = new URLSearchParams();
-          if (formData.country) params.set("country", formData.country);
-          if (formData.state) params.set("state", formData.state);
-          if (formData.district) params.set("district", formData.district);
-          if (formData.vidhanSabhaName.trim()) {
-            params.set("name", formData.vidhanSabhaName.trim());
+      <>
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 8,
+            marginBottom: 12,
+            alignItems: "center",
+          }}
+        >
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={handleLoadBoundary}
+            disabled={!formData.masterId || loadingBoundary}
+          >
+            {loadingBoundary ? "Loading…" : "Load Boundary"}
+          </button>
+          <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+            Loads GeoJSON from master id, then you can edit on the map.
+          </span>
+        </div>
+        <BoundaryMapEditor
+          boundary={boundary}
+          onChange={handleBoundaryChange}
+          country={formData.country}
+          state={formData.state}
+          district={formData.district}
+          name={formData.vidhanSabhaName}
+          onFocusPlace={async () =>
+            getLocationCenter(formData.state, formData.district)
           }
-          const data = await apiFetch<BoundaryLookupResponse>(
-            `/api/v1/geo/boundary-lookup?${params.toString()}`,
-          );
-          if (!data?.boundary) return null;
-          return {
-            boundary: data.boundary,
-            center: data.center,
-            message: data.message,
-          };
-        }}
-      />
+          onAutoLoad={async () => {
+            if (!formData.masterId) {
+              throw new Error("Select a Vidhan Sabha first");
+            }
+            const data = await fetchConstituencyBoundary(formData.masterId);
+            return {
+              boundary: data.boundary,
+              center: data.center,
+              message: data.message,
+            };
+          }}
+        />
+        {boundaryHint && (
+          <p
+            style={{
+              marginTop: 8,
+              fontSize: 12,
+              color: "var(--text-secondary)",
+            }}
+          >
+            {boundaryHint}
+          </p>
+        )}
+      </>
     ),
     [
       boundary,
+      boundaryHint,
       formData.country,
       formData.state,
       formData.district,
       formData.vidhanSabhaName,
+      formData.masterId,
+      loadingBoundary,
     ],
   );
 
@@ -261,7 +400,7 @@ export const VidhanSabhaForm = () => {
     {
       title: "Location",
       description:
-        "Pick the Country, State and District first - the Vidhan Sabha belongs to that district.",
+        "Country → State → District → Vidhan Sabha (master catalog). Then Load Boundary.",
       icon: Globe2,
       fields: [
         {
@@ -270,9 +409,7 @@ export const VidhanSabhaForm = () => {
           type: "select",
           icon: Globe2,
           required: true,
-          options: COUNTRY_OPTIONS,
-          disabled: true,
-          helpText: "Currently India-only.",
+          options: countryOptions,
         },
         {
           name: "state",
@@ -280,8 +417,7 @@ export const VidhanSabhaForm = () => {
           type: "select",
           icon: MapPin,
           required: true,
-          options: getStateOptions(),
-          helpText: "Selecting a state loads its districts below.",
+          options: stateOptions,
         },
         {
           name: "district",
@@ -289,34 +425,35 @@ export const VidhanSabhaForm = () => {
           type: "select",
           icon: Landmark,
           required: true,
-          optionsFor: (data) => getDistrictOptions(data.state),
-          helpText: "Map zooms to this district for boundary drawing.",
+          options: districtOptions,
+        },
+        {
+          name: "masterId",
+          label: "Vidhan Sabha",
+          type: "select",
+          icon: Building,
+          required: true,
+          options: vsOptions,
+          span: 2,
+          helpText: formData.district
+            ? vsOptions.length
+              ? "Master catalog id is saved as masterId (e.g. mp-indore-3)."
+              : "No master constituencies for this district yet."
+            : "Select a district first.",
         },
       ],
     },
     {
-      title: "Vidhan Sabha Details",
-      description: "Identify the constituency and who manages it.",
-      icon: Building,
+      title: "Administration",
+      description: "Who manages this constituency.",
+      icon: UserCog,
       fields: [
-        {
-          name: "vidhanSabhaName",
-          label: "Vidhan Sabha Name",
-          type: "text",
-          icon: Building,
-          required: true,
-          placeholder: "e.g. Bhopal Dakshin-Paschim",
-          span: 2,
-          helpText:
-            "Used for Auto Load Boundary (DB match or OpenStreetMap lookup).",
-        },
         {
           name: "assignedAdmin",
           label: "Assigned Admin",
           type: "text",
           icon: UserCog,
-          placeholder:
-            "Name of the admin/coordinator managing this constituency",
+          placeholder: "Name of the admin/coordinator",
         },
         {
           name: "status",
@@ -331,9 +468,9 @@ export const VidhanSabhaForm = () => {
       ],
     },
     {
-      title: "Boundary (GeoJSON)",
+      title: "Boundary",
       description:
-        "Auto Load from data/OSM, or draw/edit the polygon on the map. Lands with lat/lng inside this polygon are auto-mapped on save.",
+        "Click Load Boundary, edit on map if needed, then Save Vidhan Sabha.",
       icon: MapPin,
       fields: [],
       customContent: boundarySection,
@@ -410,7 +547,7 @@ export const VidhanSabhaForm = () => {
       <FormPageHeader
         icon={Building}
         title={editEntry ? "Edit Vidhan Sabha" : "Add Vidhan Sabha"}
-        subtitle="Select location → Auto Load or draw boundary on the map → Save. Lands are auto-mapped when their point falls inside the polygon."
+        subtitle="Select master constituency → Load Boundary → Save (stores masterId)."
         onBack={() => navigate("/vidhansabha")}
       />
 
