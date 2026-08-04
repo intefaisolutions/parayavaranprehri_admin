@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from "react";
-import { Plus, Filter, Edit, Trash2, Award, Loader2 } from "lucide-react";
+import { Plus, Filter, Edit, Trash2, Award, Loader2, Eye, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import type { ColumnDef } from "@tanstack/react-table";
 import DataTable from "../components/DataTable";
 import DeleteConfirmModal from "./modals/DeleteConfirmModal";
 import { apiFetch } from "../utils/apiConfig";
+import { CertificateMitraPreview } from "../components/certificates/CertificateMitraPreview";
 
 interface Certificate {
   _id: string;
@@ -28,6 +29,9 @@ export const CertificatesView = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [certificateToDelete, setCertificateToDelete] =
     useState<Certificate | null>(null);
+  const [previewTemplate, setPreviewTemplate] = useState<Certificate | null>(
+    null,
+  );
 
   const loadTemplates = async () => {
     setLoading(true);
@@ -113,10 +117,19 @@ export const CertificatesView = () => {
         <div style={{ display: "flex", gap: "8px" }}>
           <button
             className="icon-btn"
+            title="Mitra view preview"
+            style={{ width: 28, height: 28 }}
+            onClick={() => setPreviewTemplate(row.original)}
+          >
+            <Eye size={14} />
+          </button>
+
+          <button
+            className="icon-btn"
             title="Issue this certificate to a Mitra"
             style={{ width: 28, height: 28 }}
             onClick={() =>
-              navigate("/certificates/issued", {
+              navigate("/certificates/issue", {
                 state: { template: row.original },
               })
             }
@@ -211,6 +224,67 @@ export const CertificatesView = () => {
         personName={certificateToDelete?.templateName}
         title="Delete Certificate Template"
       />
+
+      {previewTemplate && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1200,
+            background: "rgba(12, 28, 18, 0.55)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+          onClick={() => setPreviewTemplate(null)}
+        >
+          <div
+            className="card"
+            style={{
+              width: "min(420px, 100%)",
+              padding: 16,
+              maxHeight: "92vh",
+              overflow: "auto",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginBottom: 8,
+              }}
+            >
+              <strong>Mitra view preview</strong>
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={() => setPreviewTemplate(null)}
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <CertificateMitraPreview
+              variant="phone"
+              data={{
+                title: `Certificate of ${previewTemplate.certificateType}`,
+                recipientName: "Sample Mitra",
+                description:
+                  "In recognition of dedicated service as a Paryavaran Mitra.",
+                eventName: previewTemplate.templateName,
+                issueDate: new Date().toISOString(),
+                verificationCode: "PP-DEMO-CODE",
+                logoUrl: previewTemplate.logoUrl,
+                signatureUrl: previewTemplate.signatureUrl,
+                backgroundUrl: previewTemplate.backgroundUrl,
+                templateName: previewTemplate.templateName,
+                certificateType: previewTemplate.certificateType,
+              }}
+            />
+          </div>
+        </div>
+      )}
     </>
   );
 };

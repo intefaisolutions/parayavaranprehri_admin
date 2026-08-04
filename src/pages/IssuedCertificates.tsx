@@ -1,10 +1,27 @@
 import React, { useEffect, useState } from "react";
-import { Plus, Filter, Ban, Trash2, Loader2, ArrowLeft } from "lucide-react";
+import {
+  Plus,
+  Filter,
+  Ban,
+  Trash2,
+  Loader2,
+  ArrowLeft,
+  Eye,
+  X,
+  Download,
+  MessageCircle,
+} from "lucide-react";
+import {
+  buildCertificateShareText,
+  downloadCertificatePdf,
+  openWhatsAppShare,
+} from "../components/certificates/certificateShare";
 import { useNavigate } from "react-router-dom";
 import type { ColumnDef } from "@tanstack/react-table";
 import DataTable from "../components/DataTable";
 import DeleteConfirmModal from "./modals/DeleteConfirmModal";
 import { apiFetch } from "../utils/apiConfig";
+import { CertificateMitraPreview } from "../components/certificates/CertificateMitraPreview";
 
 interface IssuedCertificate {
   _id: string;
@@ -14,11 +31,35 @@ interface IssuedCertificate {
   recipientName: string;
   recipientMobile?: string;
   title: string;
+  description?: string;
   eventName?: string;
   issueDate: string;
   verificationCode: string;
   status: string;
-  templateId?: { templateName?: string; certificateType?: string };
+  templateId?: {
+    templateName?: string;
+    certificateType?: string;
+    logoUrl?: string;
+    signatureUrl?: string;
+    backgroundUrl?: string;
+  };
+}
+
+function issuedToPreviewData(cert: IssuedCertificate) {
+  return {
+    title: cert.title,
+    recipientName: cert.recipientName,
+    description: cert.description,
+    eventName: cert.eventName,
+    issueDate: cert.issueDate,
+    verificationCode: cert.verificationCode,
+    certificateNumber: cert.certificateNumber,
+    logoUrl: cert.templateId?.logoUrl,
+    signatureUrl: cert.templateId?.signatureUrl,
+    backgroundUrl: cert.templateId?.backgroundUrl,
+    templateName: cert.templateId?.templateName,
+    certificateType: cert.templateId?.certificateType,
+  };
 }
 
 export const IssuedCertificatesView = () => {
@@ -30,6 +71,7 @@ export const IssuedCertificatesView = () => {
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [certToDelete, setCertToDelete] = useState<IssuedCertificate | null>(null);
+  const [previewCert, setPreviewCert] = useState<IssuedCertificate | null>(null);
 
   const loadAll = async () => {
     setLoading(true);
@@ -111,6 +153,51 @@ export const IssuedCertificatesView = () => {
       header: "Actions",
       cell: ({ row }) => (
         <div style={{ display: "flex", gap: "8px" }}>
+          <button
+            className="icon-btn"
+            title="Mitra view preview"
+            style={{ width: 28, height: 28 }}
+            onClick={() => setPreviewCert(row.original)}
+          >
+            <Eye size={14} />
+          </button>
+          <button
+            className="icon-btn"
+            title="Download / PDF"
+            style={{ width: 28, height: 28 }}
+            onClick={() =>
+              downloadCertificatePdf(issuedToPreviewData(row.original))
+            }
+          >
+            <Download size={14} />
+          </button>
+          <button
+            className="icon-btn"
+            title="Share WhatsApp"
+            style={{ width: 28, height: 28 }}
+            onClick={async () => {
+              const cert = row.original;
+              const text = buildCertificateShareText(issuedToPreviewData(cert));
+              try {
+                const result = await apiFetch<{
+                  success?: boolean;
+                  error?: string;
+                }>(`/api/v1/certificates/${cert._id}/share-whatsapp`, {
+                  method: "POST",
+                });
+                if (result?.success === false) {
+                  throw new Error(result.error || "Share failed");
+                }
+              } catch {
+                openWhatsAppShare({
+                  mobile: cert.recipientMobile,
+                  text,
+                });
+              }
+            }}
+          >
+            <MessageCircle size={14} />
+          </button>
           {row.original.status === "ISSUED" && (
             <button
               className="icon-btn"
@@ -187,6 +274,57 @@ export const IssuedCertificatesView = () => {
         personName={certToDelete?.certificateNumber}
         title="Delete Certificate"
       />
+
+      {previewCert && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1200,
+            background: "rgba(12, 28, 18, 0.55)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+          onClick={() => setPreviewCert(null)}
+        >
+          <div
+            className="card"
+            style={{
+              width: "min(420px, 100%)",
+              padding: 16,
+              maxHeight: "92vh",
+              overflow: "auto",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginBottom: 8,
+              }}
+            >
+              <strong>Mitra view preview</strong>
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={() => setPreviewCert(null)}
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <CertificateMitraPreview
+              variant="phone"
+              certificateId={previewCert._id}
+              recipientMobile={previewCert.recipientMobile}
+              showActions
+              data={issuedToPreviewData(previewCert)}
+            />
+          </div>
+        </div>
+      )}
     </>
   );
 };

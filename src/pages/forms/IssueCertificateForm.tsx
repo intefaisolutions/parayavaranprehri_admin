@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Award, Users, FileText, CalendarDays, Sparkles } from "lucide-react";
 import { apiFetch } from "../../utils/apiConfig";
 import { SmartForm } from "../../components/form/SmartForm";
 import type { FormSectionConfig } from "../../components/form/SmartForm";
 import { FormPageHeader } from "../../components/form/FormPageHeader";
+import { CertificateMitraPreview } from "../../components/certificates/CertificateMitraPreview";
 
 export interface MitraOption {
   mitraId: string;
@@ -16,6 +17,10 @@ export interface TemplateOption {
   _id: string;
   templateName: string;
   certificateType: string;
+  logoUrl?: string;
+  signatureUrl?: string;
+  backgroundUrl?: string;
+  status?: string;
 }
 
 export interface IssueCertificateFormData {
@@ -45,12 +50,16 @@ export const IssueCertificateForm = () => {
   const location = useLocation();
 
   const prefill = location.state as
-    | { mitra?: { mitraId: string; name: string; mobile: string }; template?: { _id: string } }
+    | {
+        mitra?: { mitraId: string; name: string; mobile: string };
+        template?: { _id: string };
+      }
     | undefined;
 
   const [formData, setFormData] = useState<IssueCertificateFormData>({
     ...emptyForm,
     recipientId: prefill?.mitra?.mitraId || "",
+    recipientName: prefill?.mitra?.name || "",
     templateId: prefill?.template?._id || "",
   });
 
@@ -66,14 +75,67 @@ export const IssueCertificateForm = () => {
     ])
       .then(([mitraList, templateList]) => {
         setMitras(mitraList || []);
-        setTemplates((templateList || []).filter((t: any) => t.status !== "Inactive"));
+        setTemplates(
+          (templateList || []).filter((t) => t.status !== "Inactive"),
+        );
       })
-      .catch((err: any) => setError(err.message || "Failed to load certificate data"));
+      .catch((err: any) =>
+        setError(err.message || "Failed to load certificate data"),
+      );
   }, []);
 
   const handleFieldChange = (name: string, value: any) => {
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev) => {
+      if (name === "recipientId" && prev.recipientType === "MITRA") {
+        const mitra = mitras.find((m) => m.mitraId === value);
+        return {
+          ...prev,
+          recipientId: value,
+          recipientName: mitra?.name || prev.recipientName,
+        };
+      }
+      if (name === "recipientType") {
+        return {
+          ...prev,
+          recipientType: value,
+          recipientId: "",
+          recipientName: "",
+        };
+      }
+      return { ...prev, [name]: value };
+    });
   };
+
+  const selectedTemplate = useMemo(
+    () => templates.find((t) => t._id === formData.templateId),
+    [templates, formData.templateId],
+  );
+
+  const selectedMitra = useMemo(
+    () => mitras.find((m) => m.mitraId === formData.recipientId),
+    [mitras, formData.recipientId],
+  );
+
+  const previewData = useMemo(() => {
+    const name =
+      formData.recipientType === "MITRA"
+        ? selectedMitra?.name || formData.recipientName || "Mitra Name"
+        : formData.recipientName || "Recipient Name";
+
+    return {
+      title: formData.title || "Certificate of Appreciation",
+      recipientName: name,
+      description: formData.description,
+      eventName: formData.eventName,
+      issueDate: formData.issueDate,
+      verificationCode: "PP-PREVIEW",
+      logoUrl: selectedTemplate?.logoUrl,
+      signatureUrl: selectedTemplate?.signatureUrl,
+      backgroundUrl: selectedTemplate?.backgroundUrl,
+      templateName: selectedTemplate?.templateName,
+      certificateType: selectedTemplate?.certificateType,
+    };
+  }, [formData, selectedMitra, selectedTemplate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,7 +150,9 @@ export const IssueCertificateForm = () => {
         title: formData.title,
         description: formData.description || undefined,
         eventName: formData.eventName || undefined,
-        issueDate: formData.issueDate ? new Date(formData.issueDate).toISOString() : undefined,
+        issueDate: formData.issueDate
+          ? new Date(formData.issueDate).toISOString()
+          : undefined,
       };
       if (formData.recipientType === "USER") {
         payload.recipientName = formData.recipientName;
@@ -169,7 +233,13 @@ export const IssueCertificateForm = () => {
             value: t._id,
           })),
         },
-        { name: "title", label: "Certificate Title", type: "text", icon: Award, required: true },
+        {
+          name: "title",
+          label: "Certificate Title",
+          type: "text",
+          icon: Award,
+          required: true,
+        },
         {
           name: "eventName",
           label: "Event / Occasion",
@@ -182,9 +252,15 @@ export const IssueCertificateForm = () => {
           label: "Description / Reason",
           type: "textarea",
           span: 2,
-          placeholder: "e.g. In recognition of planting 50 trees under the Paryavaran Prahri initiative",
+          placeholder:
+            "e.g. In recognition of planting 50 trees under the Paryavaran Prahri initiative",
         },
-        { name: "issueDate", label: "Issue Date", type: "date", icon: CalendarDays },
+        {
+          name: "issueDate",
+          label: "Issue Date",
+          type: "date",
+          icon: CalendarDays,
+        },
       ],
     },
   ];
@@ -194,23 +270,50 @@ export const IssueCertificateForm = () => {
       <FormPageHeader
         icon={Award}
         title="Issue Certificate"
-        subtitle="Issue a certificate to a Paryavaran Mitra (volunteer) or other user."
+        subtitle="Issue a certificate to a Paryavaran Mitra — live Mitra preview on the right."
         onBack={() => navigate("/certificates/issued")}
       />
 
-      <div className="card">
-        <SmartForm
-          sections={sections}
-          formData={formData}
-          onFieldChange={handleFieldChange}
-          onSubmit={handleSubmit}
-          submitting={submitting}
-          error={error}
-          submitLabel="Issue Certificate"
-          cancelLabel="Cancel"
-          onCancel={() => navigate("/certificates/issued")}
-        />
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 1.15fr) minmax(280px, 0.85fr)",
+          gap: 16,
+          alignItems: "start",
+        }}
+        className="cert-issue-layout"
+      >
+        <div className="card">
+          <SmartForm
+            sections={sections}
+            formData={formData}
+            onFieldChange={handleFieldChange}
+            onSubmit={handleSubmit}
+            submitting={submitting}
+            error={error}
+            submitLabel="Issue Certificate"
+            cancelLabel="Cancel"
+            onCancel={() => navigate("/certificates/issued")}
+          />
+        </div>
+
+        <div className="card" style={{ padding: 16, position: "sticky", top: 16 }}>
+          <CertificateMitraPreview
+            data={previewData}
+            variant="phone"
+            recipientMobile={selectedMitra?.mobile}
+            showActions
+          />
+        </div>
       </div>
+
+      <style>{`
+        @media (max-width: 960px) {
+          .cert-issue-layout {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
     </div>
   );
 };
