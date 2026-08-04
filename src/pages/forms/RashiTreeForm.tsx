@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   BookOpen,
@@ -7,6 +7,7 @@ import {
   Info,
   Leaf,
   ListOrdered,
+  Plus,
   Sparkles,
   Sprout,
   ToggleLeft,
@@ -73,18 +74,66 @@ export const RashiTreeForm = () => {
   const editEntry = location.state?.rashiTree;
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [loadingTrees, setLoadingTrees] = useState(true);
+  const [treeOptions, setTreeOptions] = useState<
+    { label: string; value: string; meta?: any }[]
+  >([]);
 
   const [formData, setFormData] = useState<RashiTreeFormData>(
     editEntry
       ? {
           ...emptyForm,
           ...editEntry,
-          rashiPicker: editEntry.zodiacNumber ? String(editEntry.zodiacNumber) : "",
+          rashiPicker: editEntry.zodiacNumber
+            ? String(editEntry.zodiacNumber)
+            : "",
           benefits: editEntry.benefits || [],
           galleryImages: editEntry.galleryImages || [],
         }
-      : emptyForm
+      : emptyForm,
   );
+
+  useEffect(() => {
+    setLoadingTrees(true);
+    apiFetch<any[]>("/api/v1/tree-masters?isActive=true")
+      .then((list) => {
+        const items = Array.isArray(list) ? list : [];
+        const options = items.map((t) => ({
+          label: `${t.name}${
+            t.scientificName ? ` (${t.scientificName})` : ""
+          }${t.availability === "OUT_OF_STOCK" ? " — Out of Stock" : ""}`,
+          value: t.name,
+          meta: t,
+        }));
+
+        // Keep edit value selectable even if master was deactivated
+        if (
+          editEntry?.recommendedTree &&
+          !options.some((o) => o.value === editEntry.recommendedTree)
+        ) {
+          options.unshift({
+            label: `${editEntry.recommendedTree} (saved)`,
+            value: editEntry.recommendedTree,
+            meta: undefined,
+          });
+        }
+
+        setTreeOptions(options);
+      })
+      .catch(() => setTreeOptions([]))
+      .finally(() => setLoadingTrees(false));
+  }, [editEntry?.recommendedTree]);
+
+  // Sync rashiPicker label value for SmartForm select (needs full "1|Aries|मेष")
+  useEffect(() => {
+    if (!editEntry?.zodiacNumber) return;
+    const match = RASHI_OPTIONS.find((o) =>
+      o.value.startsWith(`${editEntry.zodiacNumber}|`),
+    );
+    if (match) {
+      setFormData((prev) => ({ ...prev, rashiPicker: match.value }));
+    }
+  }, [editEntry]);
 
   const handleFieldChange = (name: string, value: any) => {
     setFormData((prev) => {
@@ -98,6 +147,24 @@ export const RashiTreeForm = () => {
           rashiNameHindi: hi || "",
         };
       }
+      if (name === "recommendedTree") {
+        const master = treeOptions.find((t) => t.value === value)?.meta;
+        if (!master) {
+          return { ...prev, recommendedTree: value };
+        }
+        return {
+          ...prev,
+          recommendedTree: master.name,
+          scientificName: master.scientificName || prev.scientificName,
+          localName: prev.localName || master.species || "",
+          description: prev.description || master.description || "",
+          benefits:
+            prev.benefits?.length > 0
+              ? prev.benefits
+              : master.benefits || [],
+          image: prev.image || master.image || "",
+        };
+      }
       return { ...prev, [name]: value };
     });
   };
@@ -108,6 +175,10 @@ export const RashiTreeForm = () => {
 
     if (!formData.zodiacNumber) {
       setError("Please select a Rashi (zodiac sign)");
+      return;
+    }
+    if (!formData.recommendedTree.trim()) {
+      setError("Please select a Recommended Tree from Tree Master Catalog");
       return;
     }
 
@@ -154,7 +225,8 @@ export const RashiTreeForm = () => {
           icon: Sparkles,
           required: true,
           options: RASHI_OPTIONS,
-          helpText: "English & Hindi names and the zodiac number are filled in automatically.",
+          helpText:
+            "English & Hindi names and the zodiac number are filled in automatically.",
           span: 2,
         },
         {
@@ -176,23 +248,31 @@ export const RashiTreeForm = () => {
     },
     {
       title: "Tree Details",
-      description: "The recommended tree for this Rashi and how it's identified.",
+      description:
+        "Pick a tree from Tree Master Catalog. Scientific name & details auto-fill.",
       icon: Sprout,
       fields: [
         {
           name: "recommendedTree",
           label: "Recommended Tree",
-          type: "text",
+          type: "select",
           icon: Leaf,
           required: true,
-          placeholder: "e.g. Amla",
+          options: treeOptions,
+          helpText: loadingTrees
+            ? "Loading Tree Master catalog…"
+            : treeOptions.length === 0
+              ? "No trees in catalog — create one in Tree Master Catalog first"
+              : "From Tree Master Catalog",
+          span: 2,
         },
         {
           name: "scientificName",
           label: "Scientific Name",
           type: "text",
           icon: BookOpen,
-          placeholder: "e.g. Phyllanthus emblica",
+          placeholder: "Auto from Tree Master",
+          helpText: "Filled from Tree Master — editable if needed",
         },
         {
           name: "localName",
@@ -215,7 +295,8 @@ export const RashiTreeForm = () => {
           type: "tags",
           icon: Heart,
           placeholder: "Type a benefit and press Enter...",
-          helpText: "Add each benefit separately (press Enter or comma after typing).",
+          helpText:
+            "Add each benefit separately (press Enter or comma after typing).",
           span: 2,
         },
         {
@@ -256,10 +337,41 @@ export const RashiTreeForm = () => {
     <div className="dashboard-area">
       <FormPageHeader
         icon={Leaf}
-        title={editEntry ? "Edit Rashi Tree Recommendation" : "Add Rashi Tree Recommendation"}
+        title={
+          editEntry
+            ? "Edit Rashi Tree Recommendation"
+            : "Add Rashi Tree Recommendation"
+        }
         subtitle="Manage which tree is recommended for each Rashi (zodiac sign), shown to users based on their DOB or manual selection."
         onBack={() => navigate("/rashi-trees")}
       />
+
+      {treeOptions.length === 0 && !loadingTrees && (
+        <div
+          className="card"
+          style={{
+            marginBottom: 16,
+            padding: 14,
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 12,
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>
+            Pehle Tree Master Catalog me tree create karo, phir yahan select
+            karoge.
+          </span>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => navigate("/tree-masters/add")}
+          >
+            <Plus size={16} /> Create Tree Master
+          </button>
+        </div>
+      )}
 
       <div className="card">
         <SmartForm
@@ -269,7 +381,9 @@ export const RashiTreeForm = () => {
           onSubmit={handleSubmit}
           submitting={submitting}
           error={error}
-          submitLabel={editEntry ? "Update Recommendation" : "Save Recommendation"}
+          submitLabel={
+            editEntry ? "Update Recommendation" : "Save Recommendation"
+          }
           cancelLabel="Cancel"
           onCancel={() => navigate("/rashi-trees")}
         />

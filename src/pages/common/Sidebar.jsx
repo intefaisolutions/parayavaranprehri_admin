@@ -9,7 +9,6 @@ import {
   UserCheck,
   ClipboardList,
   Building,
-  MapPin,
   Map,
   Newspaper,
   Image as ImageIcon,
@@ -31,7 +30,94 @@ import {
   AlertTriangle,
   Wrench,
   X,
+  MapPinned,
 } from "lucide-react";
+
+/**
+ * Sidebar ordered by setup workflow:
+ * 1) Create masters first → 2) Register people → 3) Plant trees → 4) Field ops → 5) Content → 6) System
+ */
+const menuSections = [
+  {
+    title: "Overview",
+    items: [
+      { id: "dashboard", icon: LayoutDashboard, label: "Dashboard" },
+    ],
+  },
+  {
+    title: "1. Location Masters",
+    hint: "Create these first",
+    items: [
+      { id: "vidhansabha", icon: Building, label: "Vidhan Sabha" },
+      { id: "map", icon: Map, label: "Map Management" },
+    ],
+  },
+  {
+    title: "2. Land & Tree Masters",
+    hint: "Then create land & tree catalog",
+    items: [
+      { id: "lands", icon: MapPinned, label: "Land Management" },
+      { id: "tree-masters", icon: Leaf, label: "Tree Master Catalog" },
+    ],
+  },
+  {
+    title: "3. People & Vehicles",
+    hint: "Register persons before planting",
+    items: [
+      { id: "persons", icon: Users, label: "Person Management" },
+      { id: "identity", icon: FileBadge, label: "Person Identity" },
+      { id: "vehicles", icon: Car, label: "Vehicle Management" },
+      { id: "mitras", icon: UserCheck, label: "Paryavaran Mitra" },
+    ],
+  },
+  {
+    title: "4. Plantation",
+    hint: "Catalog → request → approve",
+    items: [
+      { id: "plantations", icon: Sprout, label: "Plantation Requests" },
+      { id: "trees", icon: TreePine, label: "Tree Management" },
+      { id: "rashi-trees", icon: Sparkles, label: "Rashi Tree Recommendations" },
+    ],
+  },
+  {
+    title: "5. Field Operations",
+    items: [
+      { id: "tasks", icon: ClipboardList, label: "Task Management" },
+      { id: "mitra-events", icon: CalendarDays, label: "Mitra Events" },
+      { id: "field-issues", icon: AlertTriangle, label: "Field Issues" },
+      { id: "maintenance-logs", icon: Wrench, label: "Maintenance Logs" },
+    ],
+  },
+  {
+    title: "6. Engagement & Content",
+    items: [
+      { id: "journey", icon: Route, label: "Journey & Achievements" },
+      { id: "certificates", icon: Award, label: "Certificates" },
+      { id: "certificates/issued", icon: FileBadge, label: "Issued Certificates" },
+      { id: "news", icon: Newspaper, label: "News Management" },
+      { id: "media", icon: ImageIcon, label: "Media Management" },
+      { id: "leaders", icon: Users2, label: "Initiative Leaders" },
+      { id: "partners", icon: Handshake, label: "Channel Partners" },
+      { id: "notifications", icon: Bell, label: "Notifications" },
+    ],
+  },
+  {
+    title: "7. Support & Reports",
+    items: [
+      { id: "callcenter", icon: PhoneCall, label: "Call Center" },
+      { id: "languages", icon: Languages, label: "Languages" },
+      { id: "reports", icon: Download, label: "Reports" },
+    ],
+  },
+  {
+    title: "8. System",
+    items: [
+      { id: "settings", icon: Settings, label: "System Settings" },
+      { id: "roles", icon: ShieldCheck, label: "Role & Permissions" },
+      { id: "audit", icon: History, label: "Audit Logs" },
+    ],
+  },
+];
 
 const Sidebar = ({
   mobileOpen = false,
@@ -41,39 +127,20 @@ const Sidebar = ({
 }) => {
   const location = useLocation();
 
-  const menuItems = [
-    { id: "dashboard", icon: <LayoutDashboard size={20} />, label: "Dashboard" },
-    { id: "persons", icon: <Users size={20} />, label: "Person Management" },
-    { id: "vehicles", icon: <Car size={20} />, label: "Vehicle Management" },
-    { id: "tree-masters", icon: <Leaf size={20} />, label: "Tree Master Catalog" },
-    { id: "plantations", icon: <Sprout size={20} />, label: "Plantation Requests" },
-    { id: "trees", icon: <TreePine size={20} />, label: "Tree Management" },
-    { id: "lands", icon: <MapPin size={20} />, label: "Land Management" },
-    { id: "identity", icon: <FileBadge size={20} />, label: "Person Identity" },
-    { id: "mitras", icon: <UserCheck size={20} />, label: "Paryavaran Mitra" },
-    { id: "tasks", icon: <ClipboardList size={20} />, label: "Task Management" },
-    { id: "mitra-events", icon: <CalendarDays size={20} />, label: "Mitra Events" },
-    { id: "field-issues", icon: <AlertTriangle size={20} />, label: "Field Issues" },
-    { id: "maintenance-logs", icon: <Wrench size={20} />, label: "Maintenance Logs" },
-    { id: "vidhansabha", icon: <Building size={20} />, label: "Vidhan Sabha" },
-    { id: "location", icon: <MapPin size={20} />, label: "Location Master" },
-    { id: "map", icon: <Map size={20} />, label: "Map Management" },
-    { id: "news", icon: <Newspaper size={20} />, label: "News Management" },
-    { id: "media", icon: <ImageIcon size={20} />, label: "Media Management" },
-    { id: "leaders", icon: <Users2 size={20} />, label: "Initiative Leaders" },
-    { id: "journey", icon: <Route size={20} />, label: "Journey & Achievements" },
-    { id: "certificates", icon: <Award size={20} />, label: "Certificates" },
-    { id: "certificates/issued", icon: <FileBadge size={20} />, label: "Issued Certificates" },
-    { id: "rashi-trees", icon: <Sparkles size={20} />, label: "Rashi Tree Recommendations" },
-    { id: "partners", icon: <Handshake size={20} />, label: "Channel Partners" },
-    { id: "notifications", icon: <Bell size={20} />, label: "Notifications" },
-    { id: "callcenter", icon: <PhoneCall size={20} />, label: "Call Center" },
-    { id: "languages", icon: <Languages size={20} />, label: "Languages" },
-    { id: "reports", icon: <Download size={20} />, label: "Reports" },
-    { id: "settings", icon: <Settings size={20} />, label: "System Settings" },
-    { id: "roles", icon: <ShieldCheck size={20} />, label: "Role & Permissions" },
-    { id: "audit", icon: <History size={20} />, label: "Audit Logs" },
-  ];
+  const isActive = (itemId) => {
+    if (itemId === "dashboard") {
+      return (
+        location.pathname === "/" ||
+        location.pathname.startsWith("/dashboard")
+      );
+    }
+    // Prefer exact segment match so "certificates" doesn't activate "certificates/issued" wrongly
+    // and "lands" doesn't match unrelated paths.
+    return (
+      location.pathname === `/${itemId}` ||
+      location.pathname.startsWith(`/${itemId}/`)
+    );
+  };
 
   return (
     <aside
@@ -96,27 +163,35 @@ const Sidebar = ({
       </div>
 
       <nav className="nav-menu">
-        {menuItems.map((item) => {
-          const active =
-            location.pathname.includes(item.id) ||
-            (location.pathname === "/" && item.id === "dashboard");
-
-          return (
-            <Link
-              key={item.id}
-              to={`/${item.id}`}
-              className={`nav-item${active ? " active" : ""}`}
-              title={item.label}
-              aria-current={active ? "page" : undefined}
-              onClick={() => onNavigate?.()}
-            >
-              <span className="nav-icon" aria-hidden="true">
-                {item.icon}
-              </span>
-              <span className="nav-label">{item.label}</span>
-            </Link>
-          );
-        })}
+        {menuSections.map((section) => (
+          <div className="nav-section" key={section.title}>
+            <div className="nav-section-header">
+              <span className="nav-section-title">{section.title}</span>
+              {section.hint && (
+                <span className="nav-section-hint">{section.hint}</span>
+              )}
+            </div>
+            {section.items.map((item) => {
+              const Icon = item.icon;
+              const active = isActive(item.id);
+              return (
+                <Link
+                  key={item.id}
+                  to={`/${item.id}`}
+                  className={`nav-item${active ? " active" : ""}`}
+                  title={item.label}
+                  aria-current={active ? "page" : undefined}
+                  onClick={() => onNavigate?.()}
+                >
+                  <span className="nav-icon" aria-hidden="true">
+                    <Icon size={20} />
+                  </span>
+                  <span className="nav-label">{item.label}</span>
+                </Link>
+              );
+            })}
+          </div>
+        ))}
       </nav>
     </aside>
   );

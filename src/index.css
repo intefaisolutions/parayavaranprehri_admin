@@ -144,9 +144,65 @@ canvas {
 .nav-menu {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 16px;
   flex-grow: 1;
   padding-bottom: 16px;
+}
+
+.nav-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nav-section-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 14px 6px;
+}
+
+.nav-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nav-section-hint {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-layout.sidebar-collapsed .nav-section-header {
+  opacity: 0;
+  height: 0;
+  padding: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.admin-layout.sidebar-collapsed .nav-menu {
+  gap: 8px;
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .admin-layout.sidebar-collapsed .sidebar:hover .nav-section-header,
+  .admin-layout.sidebar-collapsed .sidebar:focus-within .nav-section-header {
+    opacity: 1;
+    height: auto;
+    padding: 4px 14px 6px;
+    pointer-events: auto;
+  }
 }
 
 .nav-item {
@@ -1786,6 +1842,14 @@ button {
 
   .admin-layout.sidebar-collapsed .brand {
     justify-content: flex-start;
+  }
+
+  .admin-layout.sidebar-collapsed .nav-section-header,
+  .admin-layout.sidebar-open.sidebar-collapsed .nav-section-header {
+    opacity: 1;
+    height: auto;
+    padding: 4px 14px 6px;
+    pointer-events: auto;
   }
 
   .sidebar-mobile-close {

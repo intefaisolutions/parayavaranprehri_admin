@@ -57,6 +57,8 @@ export interface FormSectionConfig {
   fields: FieldConfig[];
   /** Optional control shown on the right of the section header (e.g. map picker). */
   headerAction?: React.ReactNode;
+  /** Optional free-form content (e.g. map editors) rendered below the field grid. */
+  customContent?: React.ReactNode;
   /** Only renders the whole section when this returns true (or is omitted). */
   visibleWhen?: (formData: Record<string, any>) => boolean;
 }
@@ -492,7 +494,7 @@ export const SmartForm: React.FC<SmartFormProps> = ({
         const visibleFields = section.fields.filter(
           (f) => !f.visibleWhen || f.visibleWhen(formData)
         );
-        if (visibleFields.length === 0) return null;
+        if (visibleFields.length === 0 && !section.customContent) return null;
 
         return (
           <div className="form-section" key={section.title || idx}>
@@ -532,20 +534,24 @@ export const SmartForm: React.FC<SmartFormProps> = ({
               </div>
             )}
 
-            <div className="form-grid">
-              {visibleFields.map((field) => (
-                <SmartField
-                  key={field.name}
-                  field={
-                    field.optionsFor
-                      ? { ...field, options: field.optionsFor(formData) }
-                      : field
-                  }
-                  value={formData[field.name]}
-                  onChange={onFieldChange}
-                />
-              ))}
-            </div>
+            {visibleFields.length > 0 && (
+              <div className="form-grid">
+                {visibleFields.map((field) => (
+                  <SmartField
+                    key={field.name}
+                    field={
+                      field.optionsFor
+                        ? { ...field, options: field.optionsFor(formData) }
+                        : field
+                    }
+                    value={formData[field.name]}
+                    onChange={onFieldChange}
+                  />
+                ))}
+              </div>
+            )}
+
+            {section.customContent}
           </div>
         );
       })}
