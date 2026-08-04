@@ -72,9 +72,10 @@
   overflow: hidden;
   min-height: 380px;
   background:
-    radial-gradient(circle at top right, rgba(34, 197, 94, 0.18), transparent 40%),
-    linear-gradient(160deg, #f8faf8 0%, #eef7f0 55%, #e7f2ea 100%);
-  border: 1px solid rgba(22, 101, 52, 0.18);
+    radial-gradient(circle at 15% 20%, rgba(34, 197, 94, 0.16), transparent 42%),
+    radial-gradient(circle at 85% 80%, rgba(21, 128, 61, 0.12), transparent 40%),
+    linear-gradient(145deg, #fbfdfb 0%, #eef8f1 48%, #e5f3ea 100%);
+  border: 1px solid rgba(22, 101, 52, 0.22);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55);
   display: flex;
   flex-direction: column;
@@ -91,13 +92,28 @@
   content: "";
   position: absolute;
   inset: 0;
-  background: rgba(248, 250, 248, 0.78);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.82) 0%,
+    rgba(248, 252, 249, 0.88) 45%,
+    rgba(255, 255, 255, 0.86) 100%
+  );
   pointer-events: none;
+}
+
+.cert-frame {
+  position: absolute;
+  inset: 8px;
+  border: 2px solid rgba(22, 101, 52, 0.55);
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px rgba(184, 134, 11, 0.55);
+  pointer-events: none;
+  z-index: 1;
 }
 
 .cert-card-inner {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -105,26 +121,44 @@
 }
 
 .cert-logo {
-  width: 56px;
-  height: 56px;
-  object-fit: contain;
+  width: 62px;
+  height: 62px;
+  object-fit: cover;
   margin: 0 auto 4px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.85);
-  padding: 4px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid rgba(22, 101, 52, 0.25);
+  padding: 2px;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
 }
 
 .cert-logo-fallback {
-  width: 56px;
-  height: 56px;
+  width: 62px;
+  height: 62px;
   margin: 0 auto 4px;
-  border-radius: 12px;
+  border-radius: 50%;
   display: grid;
   place-items: center;
-  background: #166534;
+  background: linear-gradient(145deg, #166534, #15803d);
   color: #fff;
   font-weight: 800;
   font-size: 18px;
+}
+
+.cert-ornament {
+  width: 88px;
+  height: 6px;
+  margin: 2px auto 0;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    #b8860b 20%,
+    #166534 50%,
+    #b8860b 80%,
+    transparent
+  );
+  opacity: 0.75;
 }
 
 .cert-eyebrow {
@@ -154,7 +188,7 @@
   font-family: "Georgia", "Times New Roman", serif;
   font-size: 20px;
   color: #0f172a;
-  border-bottom: 1px solid rgba(22, 101, 52, 0.25);
+  border-bottom: 2px solid #b8860b;
   padding-bottom: 6px;
   display: inline-block;
   align-self: center;

@@ -3,6 +3,33 @@ import { AlertCircle, CheckCircle2, ExternalLink, ImageOff, Loader2, UploadCloud
 import type { LucideIcon } from "lucide-react";
 import { apiFetch, apiUpload } from "../../utils/apiConfig";
 
+function SignedGalleryImage({ url, alt }: { url: string; alt: string }) {
+  const [src, setSrc] = useState(url);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!/amazonaws\.com|\.s3[.-]/i.test(url) || /[?&]X-Amz-/i.test(url)) {
+      setSrc(url);
+      return;
+    }
+    (async () => {
+      try {
+        const data = await apiFetch<{ signedUrl: string }>(
+          `/api/v1/uploads/signed?url=${encodeURIComponent(url)}`
+        );
+        if (!cancelled && data?.signedUrl) setSrc(data.signedUrl);
+      } catch {
+        if (!cancelled) setSrc(url);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [url]);
+
+  return <img src={src} alt={alt} />;
+}
+
 export type FieldType =
   | "text"
   | "textarea"
@@ -92,9 +119,26 @@ const SmartField: React.FC<SmartFieldProps> = ({ field, value, onChange }) => {
   const [galleryUrlDraft, setGalleryUrlDraft] = useState("");
   const [previewSrc, setPreviewSrc] = useState("");
   const [previewBroken, setPreviewBroken] = useState(false);
+  /** Cache permanent URL → signed preview so gallery/images don't flicker. */
+  const signedCacheRef = React.useRef<Map<string, string>>(new Map());
 
   const isS3Url = (url: string) =>
-    /amazonaws\.com|\.s3[.-]/i.test(url);
+    /amazonaws\.com|\.s3[.-]/i.test(url) || /[?&]X-Amz-/i.test(url);
+
+  const resolveSignedPreview = async (permanentUrl: string): Promise<string> => {
+    const cached = signedCacheRef.current.get(permanentUrl);
+    if (cached) return cached;
+    if (/[?&]X-Amz-/i.test(permanentUrl)) {
+      signedCacheRef.current.set(permanentUrl, permanentUrl);
+      return permanentUrl;
+    }
+    const data = await apiFetch<{ signedUrl: string }>(
+      `/api/v1/uploads/signed?url=${encodeURIComponent(permanentUrl)}`
+    );
+    const signed = data?.signedUrl || permanentUrl;
+    signedCacheRef.current.set(permanentUrl, signed);
+    return signed;
+  };
 
   // Private S3 objects return 403 in <img>; resolve a short-lived signed URL for preview.
   useEffect(() => {
@@ -111,14 +155,14 @@ const SmartField: React.FC<SmartFieldProps> = ({ field, value, onChange }) => {
       return;
     }
 
-    setPreviewSrc(value);
+    const cached = signedCacheRef.current.get(value);
+    setPreviewSrc(cached || value);
+
     (async () => {
       try {
-        const data = await apiFetch<{ signedUrl: string }>(
-          `/api/v1/uploads/signed?url=${encodeURIComponent(value)}`
-        );
-        if (!cancelled && data?.signedUrl) {
-          setPreviewSrc(data.signedUrl);
+        const signed = await resolveSignedPreview(value);
+        if (!cancelled) {
+          setPreviewSrc(signed);
           setPreviewBroken(false);
         }
       } catch {
@@ -131,17 +175,33 @@ const SmartField: React.FC<SmartFieldProps> = ({ field, value, onChange }) => {
     };
   }, [value]);
 
+  const handlePreviewError = async () => {
+    if (!value || typeof value !== "string") {
+      setPreviewBroken(true);
+      return;
+    }
+    // One retry with a fresh signed URL (cache may be stale / expired).
+    try {
+      signedCacheRef.current.delete(value);
+      const signed = await resolveSignedPreview(value);
+      if (signed && signed !== previewSrc) {
+        setPreviewSrc(signed);
+        setPreviewBroken(false);
+        return;
+      }
+    } catch {
+      // fall through
+    }
+    setPreviewBroken(true);
+  };
+
   const openPhotoInNewTab = async () => {
     if (!value) return;
     try {
       if (isS3Url(value)) {
-        const data = await apiFetch<{ signedUrl: string }>(
-          `/api/v1/uploads/signed?url=${encodeURIComponent(value)}`
-        );
-        if (data?.signedUrl) {
-          window.open(data.signedUrl, "_blank", "noopener,noreferrer");
-          return;
-        }
+        const signed = await resolveSignedPreview(value);
+        window.open(signed, "_blank", "noopener,noreferrer");
+        return;
       }
     } catch {
       // Fall through to original URL
@@ -153,12 +213,20 @@ const SmartField: React.FC<SmartFieldProps> = ({ field, value, onChange }) => {
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => onChange(name, e.target.value);
 
-  const uploadFile = async (file: File): Promise<string | null> => {
+  const uploadFile = async (
+    file: File
+  ): Promise<{ url: string; signedUrl: string } | null> => {
     setUploading(true);
     setUploadError("");
     try {
       const result = await apiUpload(file, uploadCategory);
-      return result.url;
+      if (result?.url && result?.signedUrl) {
+        signedCacheRef.current.set(result.url, result.signedUrl);
+      }
+      return {
+        url: result.url,
+        signedUrl: result.signedUrl || result.url,
+      };
     } catch (err: any) {
       setUploadError(err?.message || "Upload failed");
       return null;
@@ -171,8 +239,13 @@ const SmartField: React.FC<SmartFieldProps> = ({ field, value, onChange }) => {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    const url = await uploadFile(file);
-    if (url) onChange(name, url);
+    const uploaded = await uploadFile(file);
+    if (uploaded) {
+      // Show signed preview immediately; persist permanent URL in form state.
+      setPreviewSrc(uploaded.signedUrl);
+      setPreviewBroken(false);
+      onChange(name, uploaded.url);
+    }
   };
 
   const handleGalleryFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -182,8 +255,8 @@ const SmartField: React.FC<SmartFieldProps> = ({ field, value, onChange }) => {
     const current: string[] = Array.isArray(value) ? value : [];
     const uploaded: string[] = [];
     for (const file of files) {
-      const url = await uploadFile(file);
-      if (url) uploaded.push(url);
+      const result = await uploadFile(file);
+      if (result) uploaded.push(result.url);
     }
     if (uploaded.length > 0) onChange(name, [...current, ...uploaded]);
   };
@@ -344,7 +417,9 @@ const SmartField: React.FC<SmartFieldProps> = ({ field, value, onChange }) => {
               <img
                 src={previewSrc}
                 alt={label}
-                onError={() => setPreviewBroken(true)}
+                onError={() => {
+                  void handlePreviewError();
+                }}
               />
             ) : (
               <ImageOff size={22} color="var(--text-secondary)" />
@@ -383,7 +458,7 @@ const SmartField: React.FC<SmartFieldProps> = ({ field, value, onChange }) => {
             />
             {previewBroken && value && (
               <span className="ff-help" style={{ color: "var(--danger-color)" }}>
-                Preview blocked (private S3). Use Open to view with a signed link.
+                Preview unavailable. Click Open for a fresh signed link, or re-upload the image.
               </span>
             )}
           </div>
@@ -393,7 +468,7 @@ const SmartField: React.FC<SmartFieldProps> = ({ field, value, onChange }) => {
           <div className="ff-gallery-grid">
             {(Array.isArray(value) ? value : []).map((url: string, idx: number) => (
               <div className="ff-gallery-item" key={`${url}-${idx}`}>
-                <img src={url} alt={`${label} ${idx + 1}`} />
+                <SignedGalleryImage url={url} alt={`${label} ${idx + 1}`} />
                 <button type="button" className="ff-gallery-remove" onClick={() => removeGalleryItem(idx)}>
                   <X size={12} />
                 </button>

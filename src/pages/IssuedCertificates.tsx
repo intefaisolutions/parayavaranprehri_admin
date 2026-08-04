@@ -165,9 +165,9 @@ export const IssuedCertificatesView = () => {
             className="icon-btn"
             title="Download / PDF"
             style={{ width: 28, height: 28 }}
-            onClick={() =>
-              downloadCertificatePdf(issuedToPreviewData(row.original))
-            }
+            onClick={() => {
+              void downloadCertificatePdf(issuedToPreviewData(row.original));
+            }}
           >
             <Download size={14} />
           </button>

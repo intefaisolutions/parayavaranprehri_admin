@@ -183,13 +183,17 @@ export const apiFetchMeta = async <T = any>(
 };
 
 export interface UploadResult {
+  /** Permanent S3 object URL — persist this in the database / form state. */
   url: string;
+  /** Temporary signed GET URL — use for <img src> preview. */
+  signedUrl: string;
   key: string;
+  bucket?: string;
 }
 
 /**
  * Uploads a single file (image/PDF) to the backend, which stores it in S3
- * and returns a public URL. Reusable anywhere a file needs to be uploaded.
+ * and returns a permanent `url` plus a temporary `signedUrl` for preview.
  *
  * @param file - The File object (e.g. from an <input type="file"> change event)
  * @param category - S3 folder category: 'users' | 'certificates' | 'trees' | 'documents' | 'general'

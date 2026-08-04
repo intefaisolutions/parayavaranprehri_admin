@@ -1,10 +1,11 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Download, MessageCircle, Smartphone } from "lucide-react";
 import { apiFetch } from "../../utils/apiConfig";
 import {
   buildCertificateShareText,
   downloadCertificatePdf,
   openWhatsAppShare,
+  resolveSignedUrl,
 } from "./certificateShare";
 import "./CertificateMitraPreview.css";
 
@@ -55,14 +56,48 @@ export function CertificateMitraPreview({
 }: Props) {
   const [actionMsg, setActionMsg] = useState("");
   const [sharing, setSharing] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [logoSrc, setLogoSrc] = useState("");
+  const [signatureSrc, setSignatureSrc] = useState("");
+  const [backgroundSrc, setBackgroundSrc] = useState("");
 
   const title = data.title || "Certificate of Appreciation";
   const name = data.recipientName || "Mitra Name";
 
-  const handleDownload = () => {
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const [logo, signature, background] = await Promise.all([
+        resolveSignedUrl(data.logoUrl),
+        resolveSignedUrl(data.signatureUrl),
+        resolveSignedUrl(data.backgroundUrl),
+      ]);
+      if (cancelled) return;
+      setLogoSrc(logo);
+      setSignatureSrc(signature);
+      setBackgroundSrc(background);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [data.logoUrl, data.signatureUrl, data.backgroundUrl]);
+
+  const handleDownload = async () => {
     setActionMsg("");
-    downloadCertificatePdf(data);
-    setActionMsg("Print dialog opened — choose Save as PDF to download.");
+    setDownloading(true);
+    try {
+      await downloadCertificatePdf({
+        ...data,
+        logoUrl: logoSrc || data.logoUrl,
+        signatureUrl: signatureSrc || data.signatureUrl,
+        backgroundUrl: backgroundSrc || data.backgroundUrl,
+      });
+      setActionMsg("Print dialog opened — choose Save as PDF to download.");
+    } catch {
+      setActionMsg("Could not prepare PDF. Please try again.");
+    } finally {
+      setDownloading(false);
+    }
   };
 
   const handleWhatsApp = async () => {
@@ -105,9 +140,10 @@ export function CertificateMitraPreview({
         type="button"
         className="btn-secondary cert-action-btn"
         onClick={handleDownload}
+        disabled={downloading}
       >
         <Download size={16} />
-        Download / PDF
+        {downloading ? "Preparing…" : "Download / PDF"}
       </button>
       <button
         type="button"
@@ -124,16 +160,17 @@ export function CertificateMitraPreview({
 
   const card = (
     <div
-      className={`cert-card${data.backgroundUrl ? " has-bg" : ""}`}
+      className={`cert-card${backgroundSrc || data.backgroundUrl ? " has-bg" : ""}`}
       style={
-        data.backgroundUrl
-          ? { backgroundImage: `url(${data.backgroundUrl})` }
+        backgroundSrc || data.backgroundUrl
+          ? { backgroundImage: `url(${backgroundSrc || data.backgroundUrl})` }
           : undefined
       }
     >
+      <div className="cert-frame" aria-hidden />
       <div className="cert-card-inner">
-        {data.logoUrl ? (
-          <img className="cert-logo" src={data.logoUrl} alt="Logo" />
+        {logoSrc || data.logoUrl ? (
+          <img className="cert-logo" src={logoSrc || data.logoUrl} alt="Logo" />
         ) : (
           <div className="cert-logo-fallback">PP</div>
         )}
@@ -145,6 +182,7 @@ export function CertificateMitraPreview({
         <h3 className="cert-title">{title}</h3>
         <p className="cert-presented">This certificate is proudly presented to</p>
         <p className="cert-name">{name}</p>
+        <div className="cert-ornament" aria-hidden />
 
         {data.description ? (
           <p className="cert-desc">{data.description}</p>
@@ -189,10 +227,10 @@ export function CertificateMitraPreview({
           </div>
 
           <div className="cert-meta-block right">
-            {data.signatureUrl ? (
+            {signatureSrc || data.signatureUrl ? (
               <img
                 className="cert-signature"
-                src={data.signatureUrl}
+                src={signatureSrc || data.signatureUrl}
                 alt="Signature"
               />
             ) : (
