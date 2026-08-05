@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   Calendar,
@@ -17,6 +17,15 @@ import { apiFetch } from "../../utils/apiConfig";
 import { SmartForm } from "../../components/form/SmartForm";
 import type { FormSectionConfig } from "../../components/form/SmartForm";
 import { FormPageHeader } from "../../components/form/FormPageHeader";
+
+type MitraOption = {
+  _id: string;
+  mitraId?: string;
+  name: string;
+  mobile?: string;
+  status?: string;
+  vidhanSabha?: string;
+};
 
 interface TaskFormData {
   _id?: string;
@@ -52,6 +61,8 @@ export const TaskForm = () => {
   const editTask = location.state?.task;
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [mitras, setMitras] = useState<MitraOption[]>([]);
+  const [loadingMitras, setLoadingMitras] = useState(true);
 
   const [formData, setFormData] = useState<TaskFormData>(
     editTask
@@ -63,8 +74,45 @@ export const TaskForm = () => {
       : emptyForm
   );
 
+  useEffect(() => {
+    setLoadingMitras(true);
+    apiFetch<MitraOption[]>("/api/v1/mitras?status=Approved")
+      .then((list) => setMitras(list || []))
+      .catch(() => setMitras([]))
+      .finally(() => setLoadingMitras(false));
+  }, []);
+
+  const mitraSelectOptions = useMemo(() => {
+    const opts = mitras.map((m) => ({
+      label: [m.name, m.mobile, m.vidhanSabha].filter(Boolean).join(" · "),
+      value: m.name,
+    }));
+    // Keep current edit value selectable even if Mitra is no longer Approved
+    if (
+      formData.assignedMitra &&
+      !opts.some((o) => o.value === formData.assignedMitra)
+    ) {
+      opts.unshift({
+        label: formData.assignedMitra,
+        value: formData.assignedMitra,
+      });
+    }
+    return opts;
+  }, [mitras, formData.assignedMitra]);
+
   const handleFieldChange = (name: string, value: any) => {
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev) => {
+      if (name === "assignedMitra") {
+        const mitra = mitras.find((m) => m.name === value);
+        return {
+          ...prev,
+          assignedMitra: value,
+          // Prefill location from Mitra when empty
+          vidhanSabha: prev.vidhanSabha || mitra?.vidhanSabha || "",
+        };
+      }
+      return { ...prev, [name]: value };
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -121,7 +169,24 @@ export const TaskForm = () => {
       description: "Who is responsible and where this task applies.",
       icon: MapPin,
       fields: [
-        { name: "assignedMitra", label: "Assigned Mitra", type: "text", icon: User },
+        {
+          name: "assignedMitra",
+          label: "Assigned Mitra",
+          type: "select",
+          icon: User,
+          required: true,
+          options: mitraSelectOptions,
+          placeholder: loadingMitras
+            ? "Loading Mitras…"
+            : mitraSelectOptions.length
+              ? "Select Mitra"
+              : "No Approved Mitras found",
+          helpText: loadingMitras
+            ? "Fetching Approved Mitras…"
+            : mitraSelectOptions.length
+              ? "Select from Approved Mitra list"
+              : "Add/approve a Mitra under Paryavaran Mitra first",
+        },
         { name: "vidhanSabha", label: "Vidhan Sabha", type: "text", icon: Landmark },
         { name: "zone", label: "Zone", type: "text", icon: MapPin },
         { name: "sector", label: "Sector", type: "text", icon: Grid3x3 },
