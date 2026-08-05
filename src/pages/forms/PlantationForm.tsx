@@ -574,7 +574,7 @@ export const PlantationForm = () => {
     {
       title: "Vehicle & Policy",
       description:
-        "Person ke saare vehicles yahan dikhenge. Sirf Active policy wale vehicle se tree plant ho sakta hai. Multiple ho to select karo.",
+        "All vehicles linked to this person are listed here. Only a vehicle with an Active policy can be used for plantation. If there are multiple vehicles, select one.",
       icon: Car,
       fields: [
         {
@@ -626,7 +626,7 @@ export const PlantationForm = () => {
         <div style={{ marginTop: 8 }}>
           {!formData.personId ? (
             <p style={{ margin: 0, fontSize: 13, color: "var(--text-secondary)" }}>
-              Pehle Registered Person select karo — phir vehicles load honge.
+              Select a registered person first to load their vehicles.
             </p>
           ) : loadingVehicles ? (
             <div
@@ -651,7 +651,7 @@ export const PlantationForm = () => {
               }}
             >
               {vehicleMessage ||
-                "Is person pe koi vehicle nahi mila. Tree plantation ke liye vehicle + Active policy zaroori hai."}
+                "No vehicle found for this person. Plantation requires a linked vehicle with an Active policy."}
             </div>
           ) : (
             <>
@@ -663,7 +663,7 @@ export const PlantationForm = () => {
                 }}
               >
                 {vehicleMessage ||
-                  `${ownerVehicles.length} vehicle(s) — Active policy wala select karo`}
+                  `${ownerVehicles.length} vehicle(s) — select one with an Active policy`}
               </p>
               <div
                 style={{
@@ -761,8 +761,8 @@ export const PlantationForm = () => {
                             fontWeight: 600,
                           }}
                         >
-                          Is vehicle se tree plant nahi ho sakta — Active policy
-                          chahiye
+                          This vehicle cannot be used for plantation — an Active
+                          policy is required
                         </div>
                       ) : null}
                     </button>

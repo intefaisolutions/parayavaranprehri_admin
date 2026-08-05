@@ -360,8 +360,7 @@ export const RashiTreeForm = () => {
           }}
         >
           <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>
-            Pehle Tree Master Catalog me tree create karo, phir yahan select
-            karoge.
+            Create the tree in Tree Master Catalog first, then select it here.
           </span>
           <button
             type="button"

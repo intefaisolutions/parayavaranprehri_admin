@@ -12,9 +12,12 @@ interface Task {
   description?: string;
   taskType: string;
   assignedMitra?: string;
+  state?: string;
+  district?: string;
   vidhanSabha?: string;
-  zone?: string;
-  sector?: string;
+  landName?: string;
+  assignedTreeName?: string;
+  treeAssignment?: string;
   dueDate: string;
   priority: string;
   status: string;
@@ -73,8 +76,15 @@ export const TasksView = () => {
     { accessorKey: "taskType", header: "Task Type", enableSorting: true },
     { accessorKey: "assignedMitra", header: "Assigned Mitra", enableSorting: true },
     { accessorKey: "vidhanSabha", header: "Vidhan Sabha", enableSorting: true },
-    { accessorKey: "zone", header: "Zone", enableSorting: true },
-    { accessorKey: "sector", header: "Sector", enableSorting: true },
+    { accessorKey: "landName", header: "Land", enableSorting: true },
+    {
+      id: "tree",
+      header: "Tree",
+      cell: ({ row }) => {
+        if (row.original.treeAssignment === "ALL") return "All trees";
+        return row.original.assignedTreeName || "—";
+      },
+    },
     {
       accessorKey: "dueDate",
       header: "Due Date",
@@ -197,7 +207,7 @@ export const TasksView = () => {
             <DataTable
               data={tasks}
               columns={columns}
-              searchPlaceholder="Search by title, mitra, zone, sector..."
+              searchPlaceholder="Search by title, mitra, land, vidhan sabha..."
             />
           )}
         </div>

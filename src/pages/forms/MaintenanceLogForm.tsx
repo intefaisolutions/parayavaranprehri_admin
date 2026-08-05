@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Wrench, TreePine, AlignLeft, CalendarDays, User } from "lucide-react";
 import { apiFetch } from "../../utils/apiConfig";
@@ -6,6 +6,13 @@ import { SmartForm } from "../../components/form/SmartForm";
 import type { FormSectionConfig } from "../../components/form/SmartForm";
 import { FormPageHeader } from "../../components/form/FormPageHeader";
 import { DetailView } from "../../components/view/DetailView";
+
+interface TreeRow {
+  _id: string;
+  treeId: string;
+  treeName?: string;
+  species?: string;
+}
 
 interface MaintenanceLogFormData {
   _id?: string;
@@ -19,21 +26,36 @@ interface MaintenanceLogFormData {
   createdAt?: string;
 }
 
+const ACTIVITY_OPTIONS = [
+  { label: "Watering", value: "Watering" },
+  { label: "Fertilizer", value: "Fertilizer" },
+  { label: "Pruning", value: "Pruning" },
+  { label: "Weeding", value: "Weeding" },
+  { label: "Pest Control", value: "Pest Control" },
+  { label: "Mulching", value: "Mulching" },
+  { label: "Inspection", value: "Inspection" },
+  { label: "Other", value: "Other" },
+];
+
+const todayLocalDate = () => {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+
 const emptyForm: MaintenanceLogFormData = {
   treeCode: "",
   activity: "Watering",
   remarks: "",
-  loggedAt: "",
+  loggedAt: todayLocalDate(),
 };
 
-const toDateTimeLocal = (value?: string) => {
+const toDateInput = (value?: string) => {
   if (!value) return "";
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return "";
   const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
-    d.getHours(),
-  )}:${pad(d.getMinutes())}`;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 };
 
 const formatDateTime = (value?: string) => {
@@ -41,6 +63,11 @@ const formatDateTime = (value?: string) => {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleString();
+};
+
+const treeLabel = (t: TreeRow) => {
+  const name = t.treeName || t.species || "Tree";
+  return `${t.treeId} - ${name}`;
 };
 
 export const MaintenanceLogForm = () => {
@@ -55,12 +82,48 @@ export const MaintenanceLogForm = () => {
       ? {
           ...emptyForm,
           ...viewLog,
-          loggedAt: toDateTimeLocal(viewLog.loggedAt),
+          loggedAt: toDateInput(viewLog.loggedAt || viewLog.createdAt),
         }
       : emptyForm,
   );
+  const [trees, setTrees] = useState<TreeRow[]>([]);
+  const [loadingTrees, setLoadingTrees] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (isView) return;
+    setLoadingTrees(true);
+    apiFetch<TreeRow[]>("/api/v1/trees")
+      .then((list) => {
+        const items = (Array.isArray(list) ? list : []).filter((t) => t.treeId);
+        items.sort((a, b) =>
+          String(a.treeId).localeCompare(String(b.treeId), undefined, {
+            numeric: true,
+          }),
+        );
+        setTrees(items);
+      })
+      .catch(() => setTrees([]))
+      .finally(() => setLoadingTrees(false));
+  }, [isView]);
+
+  const treeOptions = useMemo(() => {
+    const opts = trees.map((t) => ({
+      label: treeLabel(t),
+      value: t.treeId,
+    }));
+    if (
+      formData.treeCode &&
+      !opts.some((o) => o.value === formData.treeCode)
+    ) {
+      opts.unshift({
+        label: formData.treeCode,
+        value: formData.treeCode,
+      });
+    }
+    return opts;
+  }, [trees, formData.treeCode]);
 
   const handleFieldChange = (name: string, value: any) => {
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -205,10 +268,12 @@ export const MaintenanceLogForm = () => {
       fields: [
         {
           name: "treeCode",
-          label: "Tree Code",
-          type: "text",
+          label: loadingTrees ? "Tree Code (loading…)" : "Tree Code",
+          type: "select",
           icon: TreePine,
           required: true,
+          disabled: loadingTrees || treeOptions.length === 0,
+          options: treeOptions,
         },
         {
           name: "activity",
@@ -216,15 +281,7 @@ export const MaintenanceLogForm = () => {
           type: "select",
           icon: Wrench,
           required: true,
-          options: [
-            { label: "Watering", value: "Watering" },
-            { label: "Tree Guard", value: "Tree Guard" },
-            { label: "Fertilizer", value: "Fertilizer" },
-            { label: "Pruning", value: "Pruning" },
-            { label: "Replaced", value: "Replaced" },
-            { label: "Soil", value: "Soil" },
-            { label: "Other", value: "Other" },
-          ],
+          options: ACTIVITY_OPTIONS,
         },
         {
           name: "remarks",

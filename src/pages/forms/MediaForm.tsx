@@ -187,11 +187,18 @@ export const MediaForm = () => {
             <label>Used In Module</label>
             <select name="usedInModule" value={formData.usedInModule || ""} onChange={handleChange}>
               <option value="">-- Select --</option>
+              <option value="Home Banner">Home Banner</option>
               <option value="News">News</option>
+              <option value="Events">Events</option>
+              <option value="Plantation">Plantation</option>
+              <option value="Maintenance">Maintenance</option>
               <option value="Gallery">Gallery</option>
-              <option value="Person">Person</option>
-              <option value="Vehicle">Vehicle</option>
-              <option value="Map">Map</option>
+              <option value="Campaigns">Campaigns</option>
+              <option value="Achievements">Achievements</option>
+              <option value="Citizen App">Citizen App</option>
+              <option value="About Us">About Us</option>
+              <option value="Certificates">Certificates</option>
+              <option value="Volunteers">Volunteers</option>
             </select>
           </div>
 

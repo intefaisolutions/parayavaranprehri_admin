@@ -113,6 +113,8 @@ export const JourneyAchievementForm = () => {
             { label: "Record", value: "record" },
             { label: "Doctorate", value: "doctorate" },
             { label: "International", value: "international" },
+            { label: "Milestone", value: "milestone" },
+            { label: "Certification", value: "certification" },
           ],
         },
         { name: "title", label: "Title", type: "text", icon: Award, required: true, span: 2 },
