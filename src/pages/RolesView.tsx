@@ -30,8 +30,9 @@ export const RolesView = () => {
     setLoading(true);
     setError("");
     try {
-      const data = await apiFetch<{ items: Role[] }>("/api/v1/roles?limit=100");
-      setRoles(data?.items || []);
+      // Paginated APIs return data as a plain array (not { items }).
+      const data = await apiFetch<Role[] | { items: Role[] }>("/api/v1/roles?limit=100");
+      setRoles(Array.isArray(data) ? data : data?.items || []);
     } catch (err: any) {
       setError(err.message || "Failed to load roles");
     } finally {

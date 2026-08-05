@@ -37,6 +37,8 @@ import {
   MapPinned,
   Loader2,
   ArrowRight,
+  User,
+  ChevronDown,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { apiFetch } from "../../utils/apiConfig";
@@ -117,14 +119,32 @@ const Header: React.FC<HeaderProps> = ({
   const [loading, setLoading] = useState(false);
   const [entityResults, setEntityResults] = useState<SearchResult[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
-
-  const storedUser = (() => {
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+  const [storedUser, setStoredUser] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem("user") || "{}");
     } catch {
       return {};
     }
-  })();
+  });
+  const [avatarSrc, setAvatarSrc] = useState("");
+
+  useEffect(() => {
+    const refreshUser = () => {
+      try {
+        setStoredUser(JSON.parse(localStorage.getItem("user") || "{}"));
+      } catch {
+        setStoredUser({});
+      }
+    };
+    window.addEventListener("user-updated", refreshUser);
+    window.addEventListener("storage", refreshUser);
+    return () => {
+      window.removeEventListener("user-updated", refreshUser);
+      window.removeEventListener("storage", refreshUser);
+    };
+  }, []);
 
   const displayName = storedUser.firstName
     ? `${storedUser.firstName} ${storedUser.lastName || ""}`.trim()
@@ -133,6 +153,40 @@ const Header: React.FC<HeaderProps> = ({
   const displayRole = (storedUser.role || "Super Admin")
     .toString()
     .replace(/_/g, " ");
+
+  useEffect(() => {
+    let cancelled = false;
+    const fallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=0D8ABC&color=fff`;
+    const raw =
+      storedUser.avatarPreview || storedUser.avatar || "";
+
+    const load = async () => {
+      if (!raw) {
+        if (!cancelled) setAvatarSrc(fallback);
+        return;
+      }
+      if (
+        storedUser.avatarPreview ||
+        !/amazonaws\.com|\.s3[.-]/i.test(raw) ||
+        /[?&]X-Amz-/i.test(raw)
+      ) {
+        if (!cancelled) setAvatarSrc(raw);
+        return;
+      }
+      try {
+        const data = await apiFetch<{ signedUrl: string }>(
+          `/api/v1/uploads/signed?url=${encodeURIComponent(raw)}`,
+        );
+        if (!cancelled) setAvatarSrc(data?.signedUrl || raw || fallback);
+      } catch {
+        if (!cancelled) setAvatarSrc(raw || fallback);
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [storedUser.avatar, storedUser.avatarPreview, displayName]);
 
   const pageResults = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -322,7 +376,29 @@ const Header: React.FC<HeaderProps> = ({
     }
   };
 
+  useEffect(() => {
+    if (!profileMenuOpen) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (
+        profileMenuRef.current &&
+        !profileMenuRef.current.contains(e.target as Node)
+      ) {
+        setProfileMenuOpen(false);
+      }
+    };
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setProfileMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onEsc);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onEsc);
+    };
+  }, [profileMenuOpen]);
+
   const handleLogout = async () => {
+    setProfileMenuOpen(false);
     const refreshToken = localStorage.getItem("refreshToken");
     try {
       if (refreshToken) {
@@ -467,34 +543,83 @@ const Header: React.FC<HeaderProps> = ({
           <Bell size={20} />
         </button>
 
-        <div className="user-profile">
-          <div className="user-info">
-            <span className="user-name">{displayName}</span>
-            <span
-              className="user-role"
-              style={{ textTransform: "capitalize" }}
-            >
-              {displayRole}
-            </span>
-          </div>
+        <div className="user-profile-menu" ref={profileMenuRef}>
+          <button
+            type="button"
+            className={`user-profile${profileMenuOpen ? " is-open" : ""}`}
+            onClick={() => setProfileMenuOpen((v) => !v)}
+            aria-haspopup="menu"
+            aria-expanded={profileMenuOpen}
+            title="Account menu"
+          >
+            <div className="user-info">
+              <span className="user-name">{displayName}</span>
+              <span
+                className="user-role"
+                style={{ textTransform: "capitalize" }}
+              >
+                {displayRole}
+              </span>
+            </div>
 
-          <div className="user-avatar">
-            <img
-              src={`https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=0D8ABC&color=fff`}
-              alt=""
+            <div className="user-avatar">
+              <img src={avatarSrc} alt="" />
+            </div>
+            <ChevronDown
+              size={16}
+              className={`user-profile-caret${profileMenuOpen ? " is-open" : ""}`}
+              aria-hidden="true"
             />
-          </div>
-        </div>
+          </button>
 
-        <button
-          type="button"
-          className="icon-btn"
-          title="Logout"
-          aria-label="Logout"
-          onClick={handleLogout}
-        >
-          <LogOut size={18} />
-        </button>
+          {profileMenuOpen ? (
+            <div className="user-profile-dropdown" role="menu">
+              <div className="user-profile-dropdown-head">
+                <span className="user-profile-dropdown-name">{displayName}</span>
+                <span
+                  className="user-profile-dropdown-role"
+                  style={{ textTransform: "capitalize" }}
+                >
+                  {displayRole}
+                </span>
+              </div>
+              <button
+                type="button"
+                role="menuitem"
+                className="user-profile-dropdown-item"
+                onClick={() => {
+                  setProfileMenuOpen(false);
+                  navigate("/profile");
+                }}
+              >
+                <User size={16} />
+                Profile
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="user-profile-dropdown-item"
+                onClick={() => {
+                  setProfileMenuOpen(false);
+                  navigate("/settings");
+                }}
+              >
+                <Settings size={16} />
+                Settings
+              </button>
+              <div className="user-profile-dropdown-divider" />
+              <button
+                type="button"
+                role="menuitem"
+                className="user-profile-dropdown-item is-danger"
+                onClick={handleLogout}
+              >
+                <LogOut size={16} />
+                Logout
+              </button>
+            </div>
+          ) : null}
+        </div>
       </div>
     </header>
   );

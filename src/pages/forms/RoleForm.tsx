@@ -57,14 +57,20 @@ export const RoleForm = () => {
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [loadingPermissions, setLoadingPermissions] = useState(false);
   const [permError, setPermError] = useState("");
+  const [existingRoleKeys, setExistingRoleKeys] = useState<string[]>([]);
+  const [loadingRoles, setLoadingRoles] = useState(!isEditing);
 
   useEffect(() => {
     const loadPermissions = async () => {
       setLoadingPermissions(true);
       setPermError("");
       try {
-        const data = await apiFetch<{ items: Permission[] }>("/api/v1/permissions?limit=500");
-        setPermissions(data?.items || []);
+        // Paginated APIs return data as a plain array (not { items }).
+        const data = await apiFetch<Permission[] | { items: Permission[] }>(
+          "/api/v1/permissions?limit=500",
+        );
+        const list = Array.isArray(data) ? data : data?.items || [];
+        setPermissions(list);
       } catch (err: any) {
         setPermError(err.message || "Failed to load permissions");
       } finally {
@@ -74,8 +80,46 @@ export const RoleForm = () => {
     loadPermissions();
   }, []);
 
+  useEffect(() => {
+    if (isEditing) return;
+    const loadExistingRoles = async () => {
+      setLoadingRoles(true);
+      try {
+        const data = await apiFetch<Array<{ name: string }> | { items: Array<{ name: string }> }>(
+          "/api/v1/roles?limit=100",
+        );
+        const list = Array.isArray(data) ? data : data?.items || [];
+        setExistingRoleKeys(list.map((r) => r.name).filter(Boolean));
+      } catch {
+        setExistingRoleKeys([]);
+      } finally {
+        setLoadingRoles(false);
+      }
+    };
+    loadExistingRoles();
+  }, [isEditing]);
+
+  const availableRoleOptions = SYSTEM_ROLE_OPTIONS.filter(
+    (opt) => isEditing || !existingRoleKeys.includes(opt.value),
+  );
+
   const handleFieldChange = (name: string, value: any) => {
     setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleRoleKeyChange = (roleKey: string) => {
+    const opt = SYSTEM_ROLE_OPTIONS.find((o) => o.value === roleKey);
+    setFormData((prev) => {
+      const previousLabel =
+        SYSTEM_ROLE_OPTIONS.find((o) => o.value === prev.name)?.label || "";
+      const shouldAutofill =
+        !prev.displayName.trim() || prev.displayName.trim() === previousLabel;
+      return {
+        ...prev,
+        name: roleKey,
+        displayName: shouldAutofill ? opt?.label || "" : prev.displayName,
+      };
+    });
   };
 
   const groupedPermissions = permissions.reduce<Record<string, Permission[]>>((acc, perm) => {
@@ -103,14 +147,39 @@ export const RoleForm = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitting(true);
     setError("");
 
-    const { _id, ...payload } = formData;
+    if (!formData.name) {
+      setError("Please select a Role Key.");
+      return;
+    }
+
+    const roleLabel =
+      SYSTEM_ROLE_OPTIONS.find((o) => o.value === formData.name)?.label || "";
+    const displayName = (formData.displayName.trim() || roleLabel).trim();
+    if (displayName.length < 2) {
+      setError("Display Name must be at least 2 characters.");
+      return;
+    }
+
+    // Keep UI in sync if we had to fall back to the role label.
+    if (displayName !== formData.displayName) {
+      handleFieldChange("displayName", displayName);
+    }
+
+    setSubmitting(true);
+
+    const payload = {
+      name: formData.name,
+      displayName,
+      description: formData.description?.trim() || undefined,
+      permissionKeys: formData.permissionKeys || [],
+      isActive: !!formData.isActive,
+    };
 
     try {
-      if (isEditing && _id) {
-        await apiFetch(`/api/v1/roles/${_id}`, {
+      if (isEditing && formData._id) {
+        await apiFetch(`/api/v1/roles/${formData._id}`, {
           method: "PATCH",
           body: JSON.stringify(payload),
         });
@@ -122,7 +191,14 @@ export const RoleForm = () => {
       }
       navigate("/roles");
     } catch (err: any) {
-      setError(err.message || "Failed to save role");
+      const msg = err.message || "Failed to save role";
+      if (/already exists/i.test(msg)) {
+        setError(
+          `${msg}. System roles are created on startup — go back to Roles and click Edit to change permissions.`,
+        );
+      } else {
+        setError(msg);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -145,20 +221,38 @@ export const RoleForm = () => {
         )}
 
         <form className="modal-form" onSubmit={handleSubmit}>
+          {!isEditing && !loadingRoles && availableRoleOptions.length === 0 && (
+            <div
+              style={{
+                background: "rgba(29, 78, 216, 0.08)",
+                color: "#1D4ED8",
+                padding: "10px 12px",
+                borderRadius: "8px",
+                marginBottom: "12px",
+                fontSize: 13,
+              }}
+            >
+              All system roles already exist (seeded on startup). Go back to the
+              Roles list and use Edit to update display name or permissions.
+            </div>
+          )}
+
           <div className="form-group">
             <label>Role Key</label>
             <select
               value={formData.name}
-              onChange={(e) => handleFieldChange("name", e.target.value)}
-              disabled={isEditing}
+              onChange={(e) => handleRoleKeyChange(e.target.value)}
+              disabled={isEditing || loadingRoles || availableRoleOptions.length === 0}
               required
             >
               <option value="">Select Role</option>
-              {SYSTEM_ROLE_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
+              {(isEditing ? SYSTEM_ROLE_OPTIONS : availableRoleOptions).map(
+                (opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ),
+              )}
             </select>
           </div>
 
@@ -167,6 +261,8 @@ export const RoleForm = () => {
             <input
               value={formData.displayName}
               onChange={(e) => handleFieldChange("displayName", e.target.value)}
+              placeholder="Auto-filled from Role Key (min 2 characters)"
+              minLength={2}
               required
             />
           </div>
@@ -252,7 +348,15 @@ export const RoleForm = () => {
               Cancel
             </button>
 
-            <button type="submit" className="btn-primary" disabled={submitting}>
+            <button
+              type="submit"
+              className="btn-primary"
+              disabled={
+                submitting ||
+                (!isEditing &&
+                  (loadingRoles || availableRoleOptions.length === 0))
+              }
+            >
               {submitting ? "Saving..." : isEditing ? "Update Role" : "Add Role"}
             </button>
           </div>

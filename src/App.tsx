@@ -65,6 +65,7 @@ import { SettingsView } from "./pages/SystemSettings";
 import { SystemSettingForm } from "./pages/forms/SystemSettingForm";
 import { RolesView } from "./pages/RolesView";
 import { RoleForm } from "./pages/forms/RoleForm";
+import { ProfileView } from "./pages/Profile";
 
 import { AuditView } from "./pages/AuditView";
 import { AuditForm } from "./pages/forms/AuditForm";
@@ -234,6 +235,7 @@ function App() {
           <Route path="/settings" element={<SettingsView />} />
           <Route path="/settings/add" element={<SystemSettingForm />} />
           <Route path="/settings/edit" element={<SystemSettingForm />} />
+          <Route path="/profile" element={<ProfileView />} />
           <Route path="/roles" element={<RolesView />} />
           <Route path="/roles/add" element={<RoleForm />} />
           <Route path="/roles/edit" element={<RoleForm />} />
