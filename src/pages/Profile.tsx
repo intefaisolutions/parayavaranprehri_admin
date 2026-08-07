@@ -126,8 +126,8 @@ export const ProfileView = () => {
       setError("Please choose an image file (JPG, PNG, or WebP).");
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      setError("Image must be 5 MB or smaller.");
+    if (file.size > 25 * 1024 * 1024) {
+      setError("Image must be 25 MB or smaller.");
       return;
     }
 
