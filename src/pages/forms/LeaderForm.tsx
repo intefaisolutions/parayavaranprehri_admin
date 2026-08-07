@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { User, Award, Building2, Image as ImageIcon, ListOrdered, ToggleLeft } from "lucide-react";
 import { apiFetch } from "../../utils/apiConfig";
@@ -21,7 +21,7 @@ const emptyForm: LeaderFormData = {
   designation: "",
   organization: "",
   photo: "",
-  displayOrder: 0,
+  displayOrder: "",
   isActive: true,
 };
 
@@ -37,13 +37,35 @@ export const LeaderForm = () => {
       ? {
           ...emptyForm,
           ...editLeader,
-          displayOrder: editLeader.displayOrder ?? 0,
+          displayOrder: editLeader.displayOrder ?? "",
         }
       : emptyForm
   );
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (isEditing) return;
+    apiFetch<Array<{ displayOrder?: number }> | { items: Array<{ displayOrder?: number }> }>(
+      "/api/v1/leaders?limit=100&sortBy=displayOrder&sortOrder=desc",
+    )
+      .then((data) => {
+        const list = Array.isArray(data) ? data : data?.items || [];
+        const max = list.reduce(
+          (m, row) => Math.max(m, Number(row.displayOrder) || 0),
+          0,
+        );
+        setFormData((prev) =>
+          prev.displayOrder === "" || prev.displayOrder === 0
+            ? { ...prev, displayOrder: max + 1 }
+            : prev,
+        );
+      })
+      .catch(() => {
+        /* keep blank — backend will auto-assign */
+      });
+  }, [isEditing]);
 
   const handleFieldChange = (name: string, value: any) => {
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -57,7 +79,10 @@ export const LeaderForm = () => {
     const { _id, ...rest } = formData;
     const payload = {
       ...rest,
-      displayOrder: rest.displayOrder === "" ? undefined : Number(rest.displayOrder),
+      displayOrder:
+        rest.displayOrder === "" || rest.displayOrder === undefined
+          ? undefined
+          : Number(rest.displayOrder),
     };
 
     try {
@@ -107,8 +132,9 @@ export const LeaderForm = () => {
           label: "Display Order",
           type: "number",
           icon: ListOrdered,
-          placeholder: "0",
-          helpText: "Lower numbers are shown first in lists.",
+          placeholder: "Auto (next available)",
+          helpText:
+            "Must be unique. Lower numbers show first. Leave blank to auto-assign the next number.",
         },
         {
           name: "isActive",

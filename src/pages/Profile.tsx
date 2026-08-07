@@ -62,6 +62,7 @@ export const ProfileView = () => {
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
+    email: "",
     phone: "",
     district: "",
     state: "",
@@ -77,6 +78,7 @@ export const ProfileView = () => {
         setForm({
           firstName: me.firstName || "",
           lastName: me.lastName || "",
+          email: me.email || "",
           phone: me.phone || "",
           district: me.district || "",
           state: me.state || "",
@@ -95,6 +97,7 @@ export const ProfileView = () => {
 
   const displayName =
     [form.firstName, form.lastName].filter(Boolean).join(" ").trim() ||
+    form.email ||
     user?.email ||
     "Admin";
 
@@ -184,11 +187,19 @@ export const ProfileView = () => {
     setError("");
     setSuccess("");
     try {
+      const email = form.email.trim().toLowerCase();
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        setError("Please enter a valid email address.");
+        setSaving(false);
+        return;
+      }
+
       const updated = await apiFetch<MeUser>("/api/v1/users/me", {
         method: "PATCH",
         body: JSON.stringify({
           firstName: form.firstName.trim() || undefined,
           lastName: form.lastName.trim() || undefined,
+          email,
           phone: form.phone.trim() || undefined,
           district: form.district.trim() || undefined,
           state: form.state.trim() || undefined,
@@ -196,9 +207,14 @@ export const ProfileView = () => {
         }),
       });
       setUser(updated);
+      setForm((prev) => ({
+        ...prev,
+        email: updated.email || email,
+      }));
       syncLocalUser({
         firstName: updated.firstName ?? form.firstName,
         lastName: updated.lastName ?? form.lastName,
+        email: updated.email ?? email,
         phone: updated.phone ?? form.phone,
         district: updated.district ?? form.district,
         state: updated.state ?? form.state,
@@ -292,7 +308,7 @@ export const ProfileView = () => {
               <div className="profile-hero-meta">
                 <h2>{displayName}</h2>
                 <span className="profile-role-pill">{roleLabel || "Admin"}</span>
-                <p className="profile-hero-email">{user?.email}</p>
+                <p className="profile-hero-email">{form.email || user?.email}</p>
               </div>
 
               <ul className="profile-hero-facts">
@@ -354,13 +370,19 @@ export const ProfileView = () => {
                   <Mail size={18} />
                   <div>
                     <h3>Contact & location</h3>
-                    <p>Email is read-only. Update phone and region below.</p>
+                    <p>Update email, phone, and region below.</p>
                   </div>
                 </div>
                 <div className="profile-grid">
                   <label className="profile-field">
                     <span>Email</span>
-                    <input value={user?.email || ""} readOnly disabled />
+                    <input
+                      type="email"
+                      value={form.email}
+                      onChange={(e) => handleChange("email", e.target.value)}
+                      required
+                      placeholder="you@example.com"
+                    />
                   </label>
                   <label className="profile-field">
                     <span>Phone</span>
