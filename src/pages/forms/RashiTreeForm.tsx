@@ -342,7 +342,7 @@ export const RashiTreeForm = () => {
             ? "Edit Rashi Tree Recommendation"
             : "Add Rashi Tree Recommendation"
         }
-        subtitle="Manage which tree is recommended for each Rashi (zodiac sign), shown to users based on their DOB or manual selection."
+        subtitle="Assign one or more recommended trees to each Rashi (zodiac sign). Users see these based on DOB or manual selection."
         onBack={() => navigate("/rashi-trees")}
       />
 

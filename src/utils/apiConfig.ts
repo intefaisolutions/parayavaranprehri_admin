@@ -192,6 +192,42 @@ export interface UploadResult {
 }
 
 /**
+ * Authenticated binary download (PDF/CSV/etc). Triggers a browser save dialog.
+ */
+export const apiDownload = async (
+  endpoint: string,
+  fallbackFilename = 'download',
+): Promise<void> => {
+  const token = localStorage.getItem('accessToken');
+  const res = await fetch(getApiUrl(endpoint), {
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+
+  if (!res.ok) {
+    const isJson = res.headers.get('content-type')?.includes('application/json');
+    const body = isJson ? await res.json().catch(() => null) : null;
+    const message =
+      body?.message || body?.error || `Download failed (${res.status})`;
+    throw new Error(Array.isArray(message) ? message.join(', ') : message);
+  }
+
+  const disposition = res.headers.get('content-disposition') || '';
+  const match = disposition.match(/filename="?([^"]+)"?/i);
+  const filename = match?.[1] || fallbackFilename;
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+};
+
+/**
  * Uploads a single file (image/PDF) to the backend, which stores it in S3
  * and returns a permanent `url` plus a temporary `signedUrl` for preview.
  *

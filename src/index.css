@@ -1301,16 +1301,38 @@ button {
 }
 
 .status-badge {
-  padding: 6px 12px;
-  border-radius: 20px;
-  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 11px;
   font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  width: max-content;
+  max-width: 100%;
+  box-sizing: border-box;
+  vertical-align: middle;
 }
 
 .status-active {
   background: rgba(0, 230, 118, 0.1);
   color: var(--success-color);
   border: 1px solid rgba(0, 230, 118, 0.2);
+}
+
+.status-warning {
+  background: rgba(245, 158, 11, 0.12);
+  color: #b45309;
+  border: 1px solid rgba(245, 158, 11, 0.28);
+}
+
+.status-inactive {
+  background: rgba(100, 116, 139, 0.12);
+  color: #475569;
+  border: 1px solid rgba(100, 116, 139, 0.25);
 }
 
 .status-boundary-yes {

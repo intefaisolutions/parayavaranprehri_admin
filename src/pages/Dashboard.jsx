@@ -30,8 +30,28 @@ const formatRelativeTime = (dateStr) => {
   return `${days} day${days === 1 ? "" : "s"} ago`;
 };
 
+const csvEscape = (value) => {
+  const text = value == null ? "" : String(value);
+  if (/[",\n\r]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
+  return text;
+};
+
+const downloadCsv = (filename, rows) => {
+  const content = `\uFEFF${rows.map((row) => row.map(csvEscape).join(",")).join("\r\n")}`;
+  const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+};
+
 const Dashboard = () => {
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
 
   const [counts, setCounts] = useState({
@@ -114,6 +134,60 @@ const Dashboard = () => {
 
   const formatNumber = (value) => (value || 0).toLocaleString("en-IN");
 
+  const handleExportReport = () => {
+    if (exporting || loading) return;
+    setExporting(true);
+    setError("");
+    try {
+      const stamp = new Date().toISOString().slice(0, 10);
+      const generatedAt = new Date().toLocaleString("en-IN");
+      const rows = [
+        ["Paryavaran Prahri — Dashboard Export"],
+        ["Generated At", generatedAt],
+        [],
+        ["Metric", "Count"],
+        ["Registered Persons", counts.persons],
+        ["Active Persons", counts.activePersons],
+        ["Total Vehicles", counts.vehicles],
+        ["Total Trees", counts.trees],
+        ["Paryavaran Mitras", counts.mitras],
+        ["Pending Tasks", counts.pendingTasks],
+        ["Sent Notifications", counts.sentNotifications],
+        [],
+        ["Recent Persons"],
+        ["Name", "Mobile", "Status", "Registered At"],
+        ...(recentPersons.length
+          ? recentPersons.map((p) => [
+              p.name || "",
+              p.mobile || "",
+              p.status || "",
+              p.createdAt
+                ? new Date(p.createdAt).toLocaleString("en-IN")
+                : "",
+            ])
+          : [["No recent persons", "", "", ""]]),
+        [],
+        ["Recent Notifications"],
+        ["Title", "Status", "Sent At"],
+        ...(recentNotifications.length
+          ? recentNotifications.map((n) => [
+              n.title || n.message || "",
+              n.status || "",
+              n.createdAt
+                ? new Date(n.createdAt).toLocaleString("en-IN")
+                : "",
+            ])
+          : [["No recent notifications", "", ""]]),
+      ];
+
+      downloadCsv(`dashboard_report_${stamp}.csv`, rows);
+    } catch (err) {
+      setError(err.message || "Failed to export dashboard report");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const statCards = [
     {
       title: "Registered Persons",
@@ -181,9 +255,15 @@ const Dashboard = () => {
           <p>Overview of the entire Paryavaran Prahri ecosystem.</p>
         </div>
 
-        <button className="btn-primary">
-          <Download size={18} />
-          Export Report
+        <button
+          type="button"
+          className="btn-primary"
+          onClick={handleExportReport}
+          disabled={loading || exporting}
+          title="Download dashboard overview as CSV"
+        >
+          {exporting ? <Loader2 size={18} className="spin" /> : <Download size={18} />}
+          {exporting ? "Exporting..." : "Export Report"}
         </button>
       </div>
 

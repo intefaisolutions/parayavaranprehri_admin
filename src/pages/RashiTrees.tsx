@@ -172,7 +172,7 @@ export const RashiTreesView = () => {
         <div className="page-header">
           <div className="page-title">
             <h1>Rashi Wise Tree Recommendations</h1>
-            <p>Manage which tree is recommended for each Rashi (zodiac sign).</p>
+            <p>Assign multiple recommended trees per Rashi (zodiac sign).</p>
           </div>
           <button className="btn-primary" onClick={openAdd}>
             <Plus size={18} />

@@ -6,7 +6,6 @@ import {
   MapPin,
   CalendarRange,
   FileType,
-  Link as LinkIcon,
   ShieldCheck,
 } from "lucide-react";
 import { apiFetch } from "../../utils/apiConfig";
@@ -23,7 +22,6 @@ interface ReportFormData {
   startDate: string;
   endDate: string;
   fileType: string;
-  fileUrl: string;
   status: string;
 }
 
@@ -35,7 +33,6 @@ const emptyForm: ReportFormData = {
   startDate: "",
   endDate: "",
   fileType: "PDF",
-  fileUrl: "",
   status: "Generated",
 };
 
@@ -147,10 +144,10 @@ export const ReportForm = () => {
           required: true,
           options: [
             { label: "PDF", value: "PDF" },
-            { label: "Excel", value: "Excel" },
+            { label: "Excel (CSV)", value: "Excel" },
           ],
+          helpText: "Download button builds this file from live data when clicked.",
         },
-        { name: "fileUrl", label: "File URL", type: "url", icon: LinkIcon, placeholder: "https://...", helpText: "Optional link to the generated file." },
         {
           name: "status",
           label: "Status",

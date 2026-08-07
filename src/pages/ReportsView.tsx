@@ -4,7 +4,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import DataTable from "../components/DataTable";
 import DeleteConfirmModal from "./modals/DeleteConfirmModal";
 import { useNavigate } from "react-router-dom";
-import { apiFetch } from "../utils/apiConfig";
+import { apiDownload, apiFetch } from "../utils/apiConfig";
 
 interface Report {
   _id: string;
@@ -36,17 +36,36 @@ export const ReportsView = () => {
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [reportToDelete, setReportToDelete] = useState<Report | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const loadReports = async () => {
     setLoading(true);
     setError("");
     try {
-      const data = await apiFetch<Report[]>("/api/v1/reports?limit=100");
-      setReports(data || []);
+      const data = await apiFetch<Report[] | { items: Report[] }>(
+        "/api/v1/reports?limit=100",
+      );
+      setReports(Array.isArray(data) ? data : data?.items || []);
     } catch (err: any) {
       setError(err.message || "Failed to load Reports");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDownload = async (report: Report) => {
+    setDownloadingId(report._id);
+    setError("");
+    try {
+      const ext = report.fileType === "Excel" ? "csv" : "pdf";
+      await apiDownload(
+        `/api/v1/reports/${report._id}/download`,
+        `${report.reportName || "report"}.${ext}`,
+      );
+    } catch (err: any) {
+      setError(err.message || "Failed to download report");
+    } finally {
+      setDownloadingId(null);
     }
   };
 
@@ -134,16 +153,20 @@ export const ReportsView = () => {
     },
     {
       header: "Download",
-      cell: ({ row }) => (
-        <button
-          className="icon-btn"
-          style={{ width: 28, height: 28 }}
-          disabled={!row.original.fileUrl}
-          onClick={() => row.original.fileUrl && window.open(row.original.fileUrl, "_blank")}
-        >
-          <Download size={14} />
-        </button>
-      ),
+      cell: ({ row }) => {
+        const busy = downloadingId === row.original._id;
+        return (
+          <button
+            className="icon-btn"
+            style={{ width: 28, height: 28 }}
+            title="Download report"
+            disabled={busy || row.original.status === "Failed"}
+            onClick={() => handleDownload(row.original)}
+          >
+            {busy ? <Loader2 size={14} className="spin" /> : <Download size={14} />}
+          </button>
+        );
+      },
     },
     {
       header: "Actions",

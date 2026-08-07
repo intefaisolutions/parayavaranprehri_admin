@@ -123,19 +123,30 @@ export const LandsView = () => {
     {
       accessorKey: "status",
       header: "Status",
-      cell: ({ row }) => (
-        <span
-          className={`status-badge ${
-            row.original.status === "AVAILABLE"
-              ? "status-active"
-              : row.original.status === "FULLY_OCCUPIED"
-                ? "status-inactive"
-                : "status-warning"
-          }`}
-        >
-          {STATUS_LABELS[row.original.status] || row.original.status}
-        </span>
-      ),
+      size: 170,
+      cell: ({ row }) => {
+        const full =
+          STATUS_LABELS[row.original.status] || row.original.status || "—";
+        const compact: Record<string, string> = {
+          AVAILABLE: "Available",
+          PARTIALLY_OCCUPIED: "Partial",
+          FULLY_OCCUPIED: "Full",
+          UNDER_MAINTENANCE: "Maintenance",
+          RESTRICTED: "Restricted",
+        };
+        const tone =
+          row.original.status === "AVAILABLE"
+            ? "status-active"
+            : row.original.status === "FULLY_OCCUPIED" ||
+                row.original.status === "RESTRICTED"
+              ? "status-inactive"
+              : "status-warning";
+        return (
+          <span className={`status-badge ${tone}`} title={full}>
+            {compact[row.original.status] || full}
+          </span>
+        );
+      },
       enableSorting: false,
     },
     {
