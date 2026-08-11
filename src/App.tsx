@@ -47,6 +47,8 @@ import { IssueCertificateForm } from "./pages/forms/IssueCertificateForm";
 
 import { RashiTreesView } from "./pages/RashiTrees";
 import { RashiTreeForm } from "./pages/forms/RashiTreeForm";
+import { RashiPlantRequestsView } from "./pages/RashiPlantRequests";
+import { RashiPlantRequestReviewForm } from "./pages/forms/RashiPlantRequestReviewForm";
 
 import { PartnersView } from "./pages/ChannelPartners";
 import { PartnerForm } from "./pages/forms/PartnerForm";
@@ -212,6 +214,11 @@ function App() {
           <Route path="/rashi-trees" element={<RashiTreesView />} />
           <Route path="/rashi-trees/add" element={<RashiTreeForm />} />
           <Route path="/rashi-trees/edit" element={<RashiTreeForm />} />
+          <Route path="/rashi-plant-requests" element={<RashiPlantRequestsView />} />
+          <Route
+            path="/rashi-plant-requests/review"
+            element={<RashiPlantRequestReviewForm />}
+          />
 
           <Route path="/partners" element={<PartnersView />} />
           <Route path="/partners/add" element={<PartnerForm />} />

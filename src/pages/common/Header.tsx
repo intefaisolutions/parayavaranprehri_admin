@@ -78,6 +78,7 @@ const PAGE_ITEMS: Array<{
   { id: "plantations", label: "Plantation Requests", path: "/plantations", icon: Sprout },
   { id: "trees", label: "Tree Management", path: "/trees", icon: TreePine },
   { id: "rashi-trees", label: "Rashi Tree Recommendations", path: "/rashi-trees", icon: Sparkles },
+  { id: "rashi-plant-requests", label: "Sacred Tree Plant Requests", path: "/rashi-plant-requests", icon: Leaf, keywords: "rashi sacred plant request" },
   { id: "tasks", label: "Task Management", path: "/tasks", icon: ClipboardList },
   { id: "mitra-events", label: "Mitra Events", path: "/mitra-events", icon: CalendarDays },
   { id: "field-issues", label: "Field Issues", path: "/field-issues", icon: AlertTriangle },

@@ -77,6 +77,11 @@ const menuSections = [
       { id: "plantations", icon: Sprout, label: "Plantation Requests" },
       { id: "trees", icon: TreePine, label: "Tree Management" },
       { id: "rashi-trees", icon: Sparkles, label: "Rashi Tree Recommendations" },
+      {
+        id: "rashi-plant-requests",
+        icon: Leaf,
+        label: "Sacred Tree Plant Requests",
+      },
     ],
   },
   {

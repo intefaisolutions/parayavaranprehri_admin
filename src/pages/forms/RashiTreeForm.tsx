@@ -18,18 +18,18 @@ import type { FormSectionConfig } from "../../components/form/SmartForm";
 import { FormPageHeader } from "../../components/form/FormPageHeader";
 
 const RASHI_OPTIONS = [
-  { label: "1 - Aries (मेष)", value: "1|Aries|मेष" },
-  { label: "2 - Taurus (वृषभ)", value: "2|Taurus|वृषभ" },
-  { label: "3 - Gemini (मिथुन)", value: "3|Gemini|मिथुन" },
-  { label: "4 - Cancer (कर्क)", value: "4|Cancer|कर्क" },
-  { label: "5 - Leo (सिंह)", value: "5|Leo|सिंह" },
-  { label: "6 - Virgo (कन्या)", value: "6|Virgo|कन्या" },
-  { label: "7 - Libra (तुला)", value: "7|Libra|तुला" },
-  { label: "8 - Scorpio (वृश्चिक)", value: "8|Scorpio|वृश्चिक" },
-  { label: "9 - Sagittarius (धनु)", value: "9|Sagittarius|धनु" },
-  { label: "10 - Capricorn (मकर)", value: "10|Capricorn|मकर" },
-  { label: "11 - Aquarius (कुंभ)", value: "11|Aquarius|कुंभ" },
-  { label: "12 - Pisces (मीन)", value: "12|Pisces|मीन" },
+  { label: "1 - Aries (मेष)", value: "1|Aries|मेष", deity: "Mangal", nakshatras: ["Ashwini", "Bharani", "Krittika"] },
+  { label: "2 - Taurus (वृषभ)", value: "2|Taurus|वृषभ", deity: "Shukra", nakshatras: ["Krittika", "Rohini", "Mrigashira"] },
+  { label: "3 - Gemini (मिथुन)", value: "3|Gemini|मिथुन", deity: "Budh", nakshatras: ["Mrigashira", "Ardra", "Punarvasu"] },
+  { label: "4 - Cancer (कर्क)", value: "4|Cancer|कर्क", deity: "Chandra", nakshatras: ["Punarvasu", "Pushya", "Ashlesha"] },
+  { label: "5 - Leo (सिंह)", value: "5|Leo|सिंह", deity: "Surya", nakshatras: ["Magha", "Purva Phalguni", "Uttara Phalguni"] },
+  { label: "6 - Virgo (कन्या)", value: "6|Virgo|कन्या", deity: "Budh", nakshatras: ["Uttara Phalguni", "Hasta", "Chitra"] },
+  { label: "7 - Libra (तुला)", value: "7|Libra|तुला", deity: "Shukra", nakshatras: ["Chitra", "Swati", "Vishakha"] },
+  { label: "8 - Scorpio (वृश्चिक)", value: "8|Scorpio|वृश्चिक", deity: "Mangal", nakshatras: ["Vishakha", "Anuradha", "Jyeshtha"] },
+  { label: "9 - Sagittarius (धनु)", value: "9|Sagittarius|धनु", deity: "Guru", nakshatras: ["Mula", "Purva Ashadha", "Uttara Ashadha"] },
+  { label: "10 - Capricorn (मकर)", value: "10|Capricorn|मकर", deity: "Shani", nakshatras: ["Uttara Ashadha", "Shravana", "Dhanishta"] },
+  { label: "11 - Aquarius (कुंभ)", value: "11|Aquarius|कुंभ", deity: "Shani", nakshatras: ["Dhanishta", "Shatabhisha", "Purva Bhadrapada"] },
+  { label: "12 - Pisces (मीन)", value: "12|Pisces|मीन", deity: "Guru", nakshatras: ["Purva Bhadrapada", "Uttara Bhadrapada", "Revati"] },
 ];
 
 interface RashiTreeFormData {
@@ -46,6 +46,11 @@ interface RashiTreeFormData {
   careInstructions: string;
   image: string;
   galleryImages: string[];
+  deity: string;
+  nakshatras: string[];
+  karmaBonus: number | "";
+  vitalityBonus: number | "";
+  harmonyBonus: number | "";
   isActive: boolean;
   displayOrder: number | "";
 }
@@ -63,6 +68,11 @@ const emptyForm: RashiTreeFormData = {
   careInstructions: "",
   image: "",
   galleryImages: [],
+  deity: "",
+  nakshatras: [],
+  karmaBonus: "",
+  vitalityBonus: "",
+  harmonyBonus: "",
   isActive: true,
   displayOrder: 0,
 };
@@ -89,6 +99,22 @@ export const RashiTreeForm = () => {
             : "",
           benefits: editEntry.benefits || [],
           galleryImages: editEntry.galleryImages || [],
+          nakshatras: editEntry.nakshatras || [],
+          deity: editEntry.deity || "",
+          karmaBonus:
+            editEntry.karmaBonus !== undefined && editEntry.karmaBonus !== null
+              ? editEntry.karmaBonus
+              : "",
+          vitalityBonus:
+            editEntry.vitalityBonus !== undefined &&
+            editEntry.vitalityBonus !== null
+              ? editEntry.vitalityBonus
+              : "",
+          harmonyBonus:
+            editEntry.harmonyBonus !== undefined &&
+            editEntry.harmonyBonus !== null
+              ? editEntry.harmonyBonus
+              : "",
         }
       : emptyForm,
   );
@@ -139,12 +165,19 @@ export const RashiTreeForm = () => {
     setFormData((prev) => {
       if (name === "rashiPicker") {
         const [num, en, hi] = String(value).split("|");
+        const meta = RASHI_OPTIONS.find((o) => o.value === value);
         return {
           ...prev,
           rashiPicker: value,
           zodiacNumber: num ? Number(num) : "",
           rashiName: en || "",
           rashiNameHindi: hi || "",
+          // Prefill deity / nakshatras when empty so CMS starts with real values
+          deity: prev.deity || meta?.deity || "",
+          nakshatras:
+            prev.nakshatras?.length > 0
+              ? prev.nakshatras
+              : meta?.nakshatras || [],
         };
       }
       if (name === "recommendedTree") {
@@ -189,8 +222,26 @@ export const RashiTreeForm = () => {
       rashiPicker: _rashiPicker,
       createdAt: _createdAt,
       updatedAt: _updatedAt,
-      ...payload
+      ...rest
     } = formData as any;
+
+    const payload = {
+      ...rest,
+      karmaBonus:
+        formData.karmaBonus === "" || formData.karmaBonus === null
+          ? undefined
+          : Number(formData.karmaBonus),
+      vitalityBonus:
+        formData.vitalityBonus === "" || formData.vitalityBonus === null
+          ? undefined
+          : Number(formData.vitalityBonus),
+      harmonyBonus:
+        formData.harmonyBonus === "" || formData.harmonyBonus === null
+          ? undefined
+          : Number(formData.harmonyBonus),
+      deity: formData.deity?.trim() || undefined,
+      nakshatras: formData.nakshatras || [],
+    };
 
     try {
       if (editEntry?._id) {
@@ -243,6 +294,53 @@ export const RashiTreeForm = () => {
           type: "boolean",
           icon: ToggleLeft,
           helpText: "Only active recommendations are shown to end users.",
+        },
+      ],
+    },
+    {
+      title: "Astrological attributes",
+      description:
+        "Shown on the Rashi Van reveal screen in the mobile app (CMS-driven).",
+      icon: Sparkles,
+      fields: [
+        {
+          name: "deity",
+          label: "Deity",
+          type: "text",
+          icon: Sparkles,
+          placeholder: "e.g. Mangal",
+          helpText: "Auto-suggested when you pick a Rashi — editable.",
+        },
+        {
+          name: "nakshatras",
+          label: "Nakshatras",
+          type: "tags",
+          icon: Sparkles,
+          placeholder: "Type a nakshatra and press Enter…",
+          helpText: "Optional list shown under Nakshatra badge.",
+          span: 2,
+        },
+        {
+          name: "karmaBonus",
+          label: "Karma +%",
+          type: "number",
+          icon: Heart,
+          placeholder: "e.g. 15",
+          helpText: "0–100. Leave empty to hide on the app.",
+        },
+        {
+          name: "vitalityBonus",
+          label: "Vitality +%",
+          type: "number",
+          icon: Heart,
+          placeholder: "e.g. 18",
+        },
+        {
+          name: "harmonyBonus",
+          label: "Harmony +%",
+          type: "number",
+          icon: Heart,
+          placeholder: "e.g. 16",
         },
       ],
     },
