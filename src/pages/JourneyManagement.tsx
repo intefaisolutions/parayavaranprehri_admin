@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Plus, Edit, Trash2, Loader2, UserRound } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import DataTable from "../components/DataTable";
+import { MediaImage } from "../components/media/MediaImage";
 import DeleteConfirmModal from "./modals/DeleteConfirmModal";
 import { apiFetch } from "../utils/apiConfig";
 
@@ -76,15 +77,12 @@ export const JourneyView = () => {
       header: "Image",
       cell: ({ row }) =>
         row.original.imageUrl ? (
-          <img
+          <MediaImage
             src={row.original.imageUrl}
             alt=""
             width={60}
             height={40}
             style={{ borderRadius: 6, objectFit: "cover" }}
-            onError={(e) =>
-              ((e.target as HTMLImageElement).style.visibility = "hidden")
-            }
           />
         ) : (
           <span style={{ color: "var(--text-secondary)" }}>—</span>

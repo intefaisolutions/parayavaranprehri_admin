@@ -2,43 +2,8 @@ import React, { useEffect, useState } from "react";
 import { AlertCircle, CheckCircle2, ExternalLink, ImageOff, Loader2, UploadCloud, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { apiFetch, apiUpload } from "../../utils/apiConfig";
-
-/** Prefer permanent S3 object URL — browser signed GETs often 403. */
-function permanentMediaUrl(url: string) {
-  if (!url) return url;
-  if (/amazonaws\.com|\.s3[.-]/i.test(url)) return url.split("?")[0];
-  return url;
-}
-
-function SignedGalleryImage({ url, alt }: { url: string; alt: string }) {
-  const [src, setSrc] = useState(permanentMediaUrl(url));
-
-  useEffect(() => {
-    setSrc(permanentMediaUrl(url));
-  }, [url]);
-
-  return (
-    <img
-      src={src}
-      alt={alt}
-      referrerPolicy="no-referrer"
-      onError={(ev) => {
-        const el = ev.currentTarget;
-        if (el.dataset.fb === "1") return;
-        el.dataset.fb = "1";
-        // Last resort: try signed URL once
-        const permanent = permanentMediaUrl(url);
-        void apiFetch<{ signedUrl: string }>(
-          `/api/v1/uploads/signed?url=${encodeURIComponent(permanent)}`,
-        )
-          .then((data) => {
-            if (data?.signedUrl) el.src = data.signedUrl;
-          })
-          .catch(() => undefined);
-      }}
-    />
-  );
-}
+import { MediaImage } from "../media/MediaImage";
+import { isS3MediaUrl, permanentMediaUrl } from "../../utils/mediaUrl";
 
 export type FieldType =
   | "text"
@@ -130,21 +95,16 @@ const SmartField: React.FC<SmartFieldProps> = ({ field, value, onChange }) => {
   const [previewSrc, setPreviewSrc] = useState("");
   const [previewBroken, setPreviewBroken] = useState(false);
 
-  const isS3Url = (url: string) =>
-    /amazonaws\.com|\.s3[.-]/i.test(url) || /[?&]X-Amz-/i.test(url);
-
-  const resolveSignedPreview = async (permanentUrl: string): Promise<string> => {
-    const clean = permanentMediaUrl(permanentUrl);
-    if (/[?&]X-Amz-/i.test(permanentUrl) && permanentUrl.includes("X-Amz-Signature")) {
-      return permanentUrl;
-    }
+  const resolveSignedPreview = async (url: string): Promise<string> => {
+    // Always sign from the permanent object URL — never reuse an expired X-Amz URL.
+    const clean = permanentMediaUrl(url);
     const data = await apiFetch<{ signedUrl: string }>(
       `/api/v1/uploads/signed?url=${encodeURIComponent(clean)}`,
     );
     return data?.signedUrl || clean;
   };
 
-  // Prefer permanent S3 URL for <img> (public-read). Signed GET often 403s in browsers.
+  // Prefer permanent S3 URL for <img>; private buckets fall back via handlePreviewError.
   useEffect(() => {
     setPreviewBroken(false);
 
@@ -153,7 +113,7 @@ const SmartField: React.FC<SmartFieldProps> = ({ field, value, onChange }) => {
       return;
     }
 
-    if (!isS3Url(value)) {
+    if (!isS3MediaUrl(value)) {
       setPreviewSrc(value);
       return;
     }
@@ -166,7 +126,6 @@ const SmartField: React.FC<SmartFieldProps> = ({ field, value, onChange }) => {
       setPreviewBroken(true);
       return;
     }
-    // Permanent failed — one retry with signed URL
     try {
       const signed = await resolveSignedPreview(value);
       if (signed && signed !== previewSrc) {
@@ -182,13 +141,33 @@ const SmartField: React.FC<SmartFieldProps> = ({ field, value, onChange }) => {
 
   const openPhotoInNewTab = async () => {
     if (!value) return;
-    const permanent = isS3Url(value) ? permanentMediaUrl(value) : value;
-    window.open(permanent || previewSrc || value, "_blank", "noopener,noreferrer");
+    try {
+      if (isS3MediaUrl(value)) {
+        const signed = await resolveSignedPreview(value);
+        window.open(signed || permanentMediaUrl(value), "_blank", "noopener,noreferrer");
+        return;
+      }
+    } catch {
+      /* open permanent below */
+    }
+    window.open(
+      isS3MediaUrl(value) ? permanentMediaUrl(value) : value,
+      "_blank",
+      "noopener,noreferrer",
+    );
   };
 
   const handle = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
-  ) => onChange(name, e.target.value);
+  ) => {
+    const next = e.target.value;
+    // Never persist expired signed query strings for S3 media fields.
+    if (type === "image" && isS3MediaUrl(next)) {
+      onChange(name, permanentMediaUrl(next));
+      return;
+    }
+    onChange(name, next);
+  };
 
   const uploadFile = async (
     file: File
@@ -426,7 +405,11 @@ const SmartField: React.FC<SmartFieldProps> = ({ field, value, onChange }) => {
             <input
               type="url"
               className="ff-image-url-input"
-              value={value ?? ""}
+              value={
+                typeof value === "string" && isS3MediaUrl(value)
+                  ? permanentMediaUrl(value)
+                  : (value ?? "")
+              }
               onChange={handle}
               placeholder="or paste an image URL here"
               disabled={disabled}
@@ -443,7 +426,7 @@ const SmartField: React.FC<SmartFieldProps> = ({ field, value, onChange }) => {
           <div className="ff-gallery-grid">
             {(Array.isArray(value) ? value : []).map((url: string, idx: number) => (
               <div className="ff-gallery-item" key={`${url}-${idx}`}>
-                <SignedGalleryImage url={url} alt={`${label} ${idx + 1}`} />
+                <MediaImage src={url} alt={`${label} ${idx + 1}`} />
                 <button type="button" className="ff-gallery-remove" onClick={() => removeGalleryItem(idx)}>
                   <X size={12} />
                 </button>

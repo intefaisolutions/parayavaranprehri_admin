@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Plus, Filter, Edit, Trash2, Loader2, Users } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import DataTable from "../components/DataTable";
+import { MediaImage } from "../components/media/MediaImage";
 import DeleteConfirmModal from "./modals/DeleteConfirmModal";
 import { apiFetch } from "../utils/apiConfig";
 
@@ -69,7 +70,7 @@ export const LeadersView = () => {
       header: "Photo",
       cell: ({ row }) =>
         row.original.photo ? (
-          <img
+          <MediaImage
             src={row.original.photo}
             alt={row.original.leaderName}
             width={40}

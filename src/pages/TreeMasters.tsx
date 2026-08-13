@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Edit, Leaf, Plus, Trash2 } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import DataTable from "../components/DataTable";
+import { MediaImage } from "../components/media/MediaImage";
 import DeleteConfirmModal from "./modals/DeleteConfirmModal";
 import { apiFetch } from "../utils/apiConfig";
 
@@ -71,7 +72,7 @@ export const TreeMastersView = () => {
       header: "Image",
       cell: ({ row }) =>
         row.original.image ? (
-          <img
+          <MediaImage
             src={row.original.image}
             alt={row.original.name}
             style={{ width: 40, height: 40, borderRadius: 8, objectFit: "cover" }}

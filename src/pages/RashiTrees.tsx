@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Edit, Leaf, Loader2, Plus, Trash2, ToggleLeft, ToggleRight } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import DataTable from "../components/DataTable";
+import { MediaImage } from "../components/media/MediaImage";
 import DeleteConfirmModal from "./modals/DeleteConfirmModal";
 import { apiFetch } from "../utils/apiConfig";
 
@@ -90,7 +91,7 @@ export const RashiTreesView = () => {
       header: "Image",
       cell: ({ row }) =>
         row.original.image ? (
-          <img
+          <MediaImage
             src={row.original.image}
             alt={row.original.rashiName}
             style={{ width: 36, height: 36, borderRadius: 8, objectFit: "cover" }}

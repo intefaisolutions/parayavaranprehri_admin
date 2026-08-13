@@ -1,5 +1,6 @@
 import React from "react";
 import { ArrowLeft, Loader2, type LucideIcon } from "lucide-react";
+import { MediaImage } from "../media/MediaImage";
 import "./DetailView.css";
 
 export type DetailBadgeTone =
@@ -127,7 +128,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
           <section className="detail-hero">
             <div className="detail-hero__avatar">
               {avatarUrl ? (
-                <img src={avatarUrl} alt={headline} />
+                <MediaImage src={avatarUrl} alt={headline} />
               ) : (
                 <span>{initials}</span>
               )}

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { User, Award, Building2, Image as ImageIcon, ListOrdered, ToggleLeft } from "lucide-react";
 import { apiFetch } from "../../utils/apiConfig";
+import { permanentMediaUrl } from "../../utils/mediaUrl";
 import { SmartForm } from "../../components/form/SmartForm";
 import type { FormSectionConfig } from "../../components/form/SmartForm";
 import { FormPageHeader } from "../../components/form/FormPageHeader";
@@ -37,6 +38,7 @@ export const LeaderForm = () => {
       ? {
           ...emptyForm,
           ...editLeader,
+          photo: editLeader.photo ? permanentMediaUrl(editLeader.photo) : "",
           displayOrder: editLeader.displayOrder ?? "",
         }
       : emptyForm
@@ -79,6 +81,8 @@ export const LeaderForm = () => {
     const { _id, ...rest } = formData;
     const payload = {
       ...rest,
+      // Never store expired S3 signed query strings
+      photo: rest.photo ? permanentMediaUrl(rest.photo) : "",
       displayOrder:
         rest.displayOrder === "" || rest.displayOrder === undefined
           ? undefined
