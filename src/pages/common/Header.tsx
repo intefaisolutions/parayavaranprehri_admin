@@ -129,7 +129,17 @@ const Header: React.FC<HeaderProps> = ({
       return {};
     }
   });
-  const [avatarSrc, setAvatarSrc] = useState("");
+  const displayName = storedUser.firstName
+    ? `${storedUser.firstName} ${storedUser.lastName || ""}`.trim()
+    : storedUser.email || storedUser.phone || "Command Center Admin";
+
+  const displayRole = (storedUser.role || "Super Admin")
+    .toString()
+    .replace(/_/g, " ");
+
+  const headerFallbackAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=0D8ABC&color=fff`;
+
+  const [avatarSrc, setAvatarSrc] = useState(headerFallbackAvatar);
 
   useEffect(() => {
     const refreshUser = () => {
@@ -147,41 +157,22 @@ const Header: React.FC<HeaderProps> = ({
     };
   }, []);
 
-  const displayName = storedUser.firstName
-    ? `${storedUser.firstName} ${storedUser.lastName || ""}`.trim()
-    : storedUser.email || storedUser.phone || "Command Center Admin";
-
-  const displayRole = (storedUser.role || "Super Admin")
-    .toString()
-    .replace(/_/g, " ");
-
   useEffect(() => {
     let cancelled = false;
     const fallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=0D8ABC&color=fff`;
-    const raw =
-      storedUser.avatarPreview || storedUser.avatar || "";
+    const raw = String(
+      storedUser.avatarPreview || storedUser.avatar || "",
+    ).trim();
 
     const load = async () => {
       if (!raw) {
         if (!cancelled) setAvatarSrc(fallback);
         return;
       }
-      if (
-        storedUser.avatarPreview ||
-        !/amazonaws\.com|\.s3[.-]/i.test(raw) ||
-        /[?&]X-Amz-/i.test(raw)
-      ) {
-        if (!cancelled) setAvatarSrc(raw);
-        return;
-      }
-      try {
-        const data = await apiFetch<{ signedUrl: string }>(
-          `/api/v1/uploads/signed?url=${encodeURIComponent(raw)}`,
-        );
-        if (!cancelled) setAvatarSrc(data?.signedUrl || raw || fallback);
-      } catch {
-        if (!cancelled) setAvatarSrc(raw || fallback);
-      }
+      // Prefer permanent S3 URL (strip signed query) — signed GET often 403s
+      const permanent =
+        /amazonaws\.com|\.s3[.-]/i.test(raw) ? raw.split("?")[0] : raw;
+      if (!cancelled) setAvatarSrc(permanent || fallback);
     };
     load();
     return () => {
@@ -564,7 +555,17 @@ const Header: React.FC<HeaderProps> = ({
             </div>
 
             <div className="user-avatar">
-              <img src={avatarSrc} alt="" />
+              <img
+                src={avatarSrc || headerFallbackAvatar}
+                alt=""
+                referrerPolicy="no-referrer"
+                onError={(ev) => {
+                  const el = ev.currentTarget;
+                  if (el.dataset.fb === "1") return;
+                  el.dataset.fb = "1";
+                  el.src = headerFallbackAvatar;
+                }}
+              />
             </div>
             <ChevronDown
               size={16}

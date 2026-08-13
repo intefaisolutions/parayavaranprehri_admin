@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 
 import Sidebar from "./pages/common/Sidebar";
 import Header from "./pages/common/Header";
@@ -84,8 +84,10 @@ import { MaintenanceLogsView } from "./pages/MaintenanceLogs";
 import { MaintenanceLogForm } from "./pages/forms/MaintenanceLogForm";
 
 import { LoginView } from "./pages/Login";
+import { PublicCertificatePage } from "./pages/PublicCertificate";
 
 function App() {
+  const location = useLocation();
   const [isAuthenticated, setIsAuthenticated] = useState(
     () => !!localStorage.getItem('accessToken')
   );
@@ -145,6 +147,13 @@ function App() {
             <LoginView onLogin={() => setIsAuthenticated(true)} />
           )
         }
+      />
+
+      {/* Public certificate share / verify links (no login) */}
+      <Route path="/certificate/:code" element={<PublicCertificatePage />} />
+      <Route
+        path="/verify-certificate/:code"
+        element={<PublicCertificatePage />}
       />
 
       {isAuthenticated ? (
@@ -283,7 +292,13 @@ function App() {
     </Routes>
   );
 
-  if (!isAuthenticated) { return renderRoutes(); }
+  const isPublicCertificatePath =
+    location.pathname.startsWith("/certificate/") ||
+    location.pathname.startsWith("/verify-certificate/");
+
+  if (!isAuthenticated || isPublicCertificatePath) {
+    return renderRoutes();
+  }
 
   const layoutClass = [
     "admin-layout",

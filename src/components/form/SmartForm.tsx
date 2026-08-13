@@ -3,31 +3,41 @@ import { AlertCircle, CheckCircle2, ExternalLink, ImageOff, Loader2, UploadCloud
 import type { LucideIcon } from "lucide-react";
 import { apiFetch, apiUpload } from "../../utils/apiConfig";
 
+/** Prefer permanent S3 object URL — browser signed GETs often 403. */
+function permanentMediaUrl(url: string) {
+  if (!url) return url;
+  if (/amazonaws\.com|\.s3[.-]/i.test(url)) return url.split("?")[0];
+  return url;
+}
+
 function SignedGalleryImage({ url, alt }: { url: string; alt: string }) {
-  const [src, setSrc] = useState(url);
+  const [src, setSrc] = useState(permanentMediaUrl(url));
 
   useEffect(() => {
-    let cancelled = false;
-    if (!/amazonaws\.com|\.s3[.-]/i.test(url) || /[?&]X-Amz-/i.test(url)) {
-      setSrc(url);
-      return;
-    }
-    (async () => {
-      try {
-        const data = await apiFetch<{ signedUrl: string }>(
-          `/api/v1/uploads/signed?url=${encodeURIComponent(url)}`
-        );
-        if (!cancelled && data?.signedUrl) setSrc(data.signedUrl);
-      } catch {
-        if (!cancelled) setSrc(url);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    setSrc(permanentMediaUrl(url));
   }, [url]);
 
-  return <img src={src} alt={alt} />;
+  return (
+    <img
+      src={src}
+      alt={alt}
+      referrerPolicy="no-referrer"
+      onError={(ev) => {
+        const el = ev.currentTarget;
+        if (el.dataset.fb === "1") return;
+        el.dataset.fb = "1";
+        // Last resort: try signed URL once
+        const permanent = permanentMediaUrl(url);
+        void apiFetch<{ signedUrl: string }>(
+          `/api/v1/uploads/signed?url=${encodeURIComponent(permanent)}`,
+        )
+          .then((data) => {
+            if (data?.signedUrl) el.src = data.signedUrl;
+          })
+          .catch(() => undefined);
+      }}
+    />
+  );
 }
 
 export type FieldType =
@@ -119,30 +129,23 @@ const SmartField: React.FC<SmartFieldProps> = ({ field, value, onChange }) => {
   const [galleryUrlDraft, setGalleryUrlDraft] = useState("");
   const [previewSrc, setPreviewSrc] = useState("");
   const [previewBroken, setPreviewBroken] = useState(false);
-  /** Cache permanent URL → signed preview so gallery/images don't flicker. */
-  const signedCacheRef = React.useRef<Map<string, string>>(new Map());
 
   const isS3Url = (url: string) =>
     /amazonaws\.com|\.s3[.-]/i.test(url) || /[?&]X-Amz-/i.test(url);
 
   const resolveSignedPreview = async (permanentUrl: string): Promise<string> => {
-    const cached = signedCacheRef.current.get(permanentUrl);
-    if (cached) return cached;
-    if (/[?&]X-Amz-/i.test(permanentUrl)) {
-      signedCacheRef.current.set(permanentUrl, permanentUrl);
+    const clean = permanentMediaUrl(permanentUrl);
+    if (/[?&]X-Amz-/i.test(permanentUrl) && permanentUrl.includes("X-Amz-Signature")) {
       return permanentUrl;
     }
     const data = await apiFetch<{ signedUrl: string }>(
-      `/api/v1/uploads/signed?url=${encodeURIComponent(permanentUrl)}`
+      `/api/v1/uploads/signed?url=${encodeURIComponent(clean)}`,
     );
-    const signed = data?.signedUrl || permanentUrl;
-    signedCacheRef.current.set(permanentUrl, signed);
-    return signed;
+    return data?.signedUrl || clean;
   };
 
-  // Private S3 objects return 403 in <img>; resolve a short-lived signed URL for preview.
+  // Prefer permanent S3 URL for <img> (public-read). Signed GET often 403s in browsers.
   useEffect(() => {
-    let cancelled = false;
     setPreviewBroken(false);
 
     if (!value || typeof value !== "string") {
@@ -155,24 +158,7 @@ const SmartField: React.FC<SmartFieldProps> = ({ field, value, onChange }) => {
       return;
     }
 
-    const cached = signedCacheRef.current.get(value);
-    setPreviewSrc(cached || value);
-
-    (async () => {
-      try {
-        const signed = await resolveSignedPreview(value);
-        if (!cancelled) {
-          setPreviewSrc(signed);
-          setPreviewBroken(false);
-        }
-      } catch {
-        // Keep the original URL; onError will mark it broken if it still fails.
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
+    setPreviewSrc(permanentMediaUrl(value));
   }, [value]);
 
   const handlePreviewError = async () => {
@@ -180,9 +166,8 @@ const SmartField: React.FC<SmartFieldProps> = ({ field, value, onChange }) => {
       setPreviewBroken(true);
       return;
     }
-    // One retry with a fresh signed URL (cache may be stale / expired).
+    // Permanent failed — one retry with signed URL
     try {
-      signedCacheRef.current.delete(value);
       const signed = await resolveSignedPreview(value);
       if (signed && signed !== previewSrc) {
         setPreviewSrc(signed);
@@ -197,16 +182,8 @@ const SmartField: React.FC<SmartFieldProps> = ({ field, value, onChange }) => {
 
   const openPhotoInNewTab = async () => {
     if (!value) return;
-    try {
-      if (isS3Url(value)) {
-        const signed = await resolveSignedPreview(value);
-        window.open(signed, "_blank", "noopener,noreferrer");
-        return;
-      }
-    } catch {
-      // Fall through to original URL
-    }
-    window.open(previewSrc || value, "_blank", "noopener,noreferrer");
+    const permanent = isS3Url(value) ? permanentMediaUrl(value) : value;
+    window.open(permanent || previewSrc || value, "_blank", "noopener,noreferrer");
   };
 
   const handle = (
@@ -220,9 +197,6 @@ const SmartField: React.FC<SmartFieldProps> = ({ field, value, onChange }) => {
     setUploadError("");
     try {
       const result = await apiUpload(file, uploadCategory);
-      if (result?.url && result?.signedUrl) {
-        signedCacheRef.current.set(result.url, result.signedUrl);
-      }
       return {
         url: result.url,
         signedUrl: result.signedUrl || result.url,
@@ -241,8 +215,8 @@ const SmartField: React.FC<SmartFieldProps> = ({ field, value, onChange }) => {
     if (!file) return;
     const uploaded = await uploadFile(file);
     if (uploaded) {
-      // Show signed preview immediately; persist permanent URL in form state.
-      setPreviewSrc(uploaded.signedUrl);
+      // Preview with permanent URL (signed often 403 in <img>)
+      setPreviewSrc(uploaded.url);
       setPreviewBroken(false);
       onChange(name, uploaded.url);
     }
@@ -417,6 +391,7 @@ const SmartField: React.FC<SmartFieldProps> = ({ field, value, onChange }) => {
               <img
                 src={previewSrc}
                 alt={label}
+                referrerPolicy="no-referrer"
                 onError={() => {
                   void handlePreviewError();
                 }}
@@ -458,7 +433,7 @@ const SmartField: React.FC<SmartFieldProps> = ({ field, value, onChange }) => {
             />
             {previewBroken && value && (
               <span className="ff-help" style={{ color: "var(--danger-color)" }}>
-                Preview unavailable. Click Open for a fresh signed link, or re-upload the image.
+                Preview unavailable. Click Open, or re-upload the image.
               </span>
             )}
           </div>

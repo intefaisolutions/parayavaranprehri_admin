@@ -8,7 +8,6 @@ import {
   ShieldCheck,
   ToggleLeft,
   TreePine,
-  UserCog,
 } from "lucide-react";
 import { apiFetch } from "../../utils/apiConfig";
 import { SmartForm } from "../../components/form/SmartForm";
@@ -38,7 +37,6 @@ interface VidhanSabhaFormData {
   district: string;
   masterId: string;
   vidhanSabhaName: string;
-  assignedAdmin: string;
   status: "Active" | "Inactive";
   totalPersons?: number;
   totalVehicles?: number;
@@ -58,7 +56,6 @@ const emptyForm: VidhanSabhaFormData = {
   district: "",
   masterId: "",
   vidhanSabhaName: "",
-  assignedAdmin: "",
   status: "Active",
 };
 
@@ -180,12 +177,18 @@ export const VidhanSabhaForm = () => {
       const data = await fetchConstituencyBoundary(formData.masterId);
       setBoundary(data.boundary);
       setBoundaryCleared(false);
-      setBoundaryHint(data.message || "Boundary loaded. Edit if needed, then save.");
-    } catch (err: unknown) {
       setBoundaryHint(
-        err instanceof Error
-          ? err.message
-          : "Boundary not found — draw polygon manually.",
+        data.message || "Boundary loaded. Edit if needed, then save.",
+      );
+    } catch (err: unknown) {
+      const raw = err instanceof Error ? err.message : "";
+      const label = formData.vidhanSabhaName || "this Vidhan Sabha";
+      const missing =
+        /boundary not found|draw the boundary manually|no boundary/i.test(raw);
+      setBoundaryHint(
+        missing
+          ? `No ready map outline for “${label}”. Use Draw Polygon on the map (Focus District → draw → Save). This is normal when the boundary file is not imported yet.`
+          : raw || "Could not load boundary. Please draw it manually on the map.",
       );
     } finally {
       setLoadingBoundary(false);
@@ -295,7 +298,6 @@ export const VidhanSabhaForm = () => {
       country: formData.country || "India",
       state: formData.state,
       district: formData.district,
-      assignedAdmin: formData.assignedAdmin || undefined,
       status: formData.status,
     };
 
@@ -372,15 +374,29 @@ export const VidhanSabhaForm = () => {
           }}
         />
         {boundaryHint && (
-          <p
+          <div
             style={{
-              marginTop: 8,
-              fontSize: 12,
-              color: "var(--text-secondary)",
+              marginTop: 10,
+              padding: "10px 12px",
+              borderRadius: 10,
+              fontSize: 13,
+              lineHeight: 1.45,
+              color: /no ready map outline|draw polygon/i.test(boundaryHint)
+                ? "#8a5a00"
+                : "var(--text-secondary)",
+              background: /no ready map outline|draw polygon/i.test(boundaryHint)
+                ? "rgba(245, 180, 40, 0.12)"
+                : "rgba(43, 150, 79, 0.06)",
+              border: `1px solid ${
+                /no ready map outline|draw polygon/i.test(boundaryHint)
+                  ? "rgba(245, 180, 40, 0.35)"
+                  : "rgba(43, 150, 79, 0.2)"
+              }`,
             }}
+            role="status"
           >
             {boundaryHint}
-          </p>
+          </div>
         )}
       </>
     ),
@@ -444,17 +460,10 @@ export const VidhanSabhaForm = () => {
       ],
     },
     {
-      title: "Administration",
-      description: "Who manages this constituency.",
-      icon: UserCog,
+      title: "Status",
+      description: "Constituency active or inactive. Mitras are assigned when creating a Mitra.",
+      icon: ToggleLeft,
       fields: [
-        {
-          name: "assignedAdmin",
-          label: "Assigned Admin",
-          type: "text",
-          icon: UserCog,
-          placeholder: "Name of the admin/coordinator",
-        },
         {
           name: "status",
           label: "Status",

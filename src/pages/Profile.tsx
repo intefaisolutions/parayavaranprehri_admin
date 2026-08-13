@@ -32,18 +32,36 @@ interface MeUser {
 const fallbackAvatar = (name: string) =>
   `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=166534&color=fff&size=256`;
 
+/** Prefer permanent S3 URL (public-read). Signed URLs often 403 in browser. */
 async function resolvePreviewUrl(url?: string): Promise<string> {
   if (!url) return "";
-  if (!/amazonaws\.com|\.s3[.-]/i.test(url) || /[?&]X-Amz-/i.test(url)) {
+  // Already a usable URL (blob, data, non-S3, or already signed)
+  if (
+    url.startsWith("blob:") ||
+    url.startsWith("data:") ||
+    !/amazonaws\.com|\.s3[.-]/i.test(url)
+  ) {
     return url;
   }
+  // Strip query to get permanent object URL when possible
   try {
-    const data = await apiFetch<{ signedUrl: string }>(
-      `/api/v1/uploads/signed?url=${encodeURIComponent(url)}`,
-    );
-    return data?.signedUrl || url;
+    const clean = url.split("?")[0];
+    return clean || url;
   } catch {
     return url;
+  }
+}
+
+async function resolveSignedFallback(url?: string): Promise<string> {
+  if (!url) return "";
+  const permanent = url.split("?")[0];
+  try {
+    const data = await apiFetch<{ signedUrl: string }>(
+      `/api/v1/uploads/signed?url=${encodeURIComponent(permanent)}`,
+    );
+    return data?.signedUrl || permanent;
+  } catch {
+    return permanent;
   }
 }
 
@@ -131,13 +149,17 @@ export const ProfileView = () => {
       return;
     }
 
+    // Instant local preview (works even if S3 signed URL is flaky)
+    const localPreview = URL.createObjectURL(file);
+    setAvatarPreview(localPreview);
     setUploading(true);
     setError("");
     setSuccess("");
     try {
       const uploaded = await apiUpload(file, "users");
       const permanent = uploaded.url;
-      const preview = uploaded.signedUrl || permanent;
+      // Use permanent URL for <img> — signed GET often returns 403 in browsers
+      const preview = permanent;
 
       const updated = await apiFetch<MeUser>("/api/v1/users/me", {
         method: "PATCH",
@@ -147,6 +169,7 @@ export const ProfileView = () => {
       setUser(updated);
       setAvatarUrl(updated.avatar || permanent);
       setAvatarPreview(preview);
+      URL.revokeObjectURL(localPreview);
       syncLocalUser({
         avatar: updated.avatar || permanent,
         avatarPreview: preview,
@@ -154,6 +177,7 @@ export const ProfileView = () => {
       setSuccess("Profile photo updated.");
     } catch (err: any) {
       setError(err.message || "Failed to upload photo");
+      // Keep local preview if upload/profile save failed mid-way
     } finally {
       setUploading(false);
     }
@@ -267,7 +291,28 @@ export const ProfileView = () => {
               <div className="profile-hero-bg" aria-hidden="true" />
               <div className="profile-avatar-wrap">
                 <div className="profile-avatar">
-                  <img src={imgSrc} alt={displayName} />
+                  <img
+                    src={imgSrc}
+                    alt={displayName}
+                    referrerPolicy="no-referrer"
+                    onError={async (ev) => {
+                      const el = ev.currentTarget;
+                      const step = el.dataset.fb || "0";
+                      if (step === "0" && avatarUrl) {
+                        el.dataset.fb = "1";
+                        const signed = await resolveSignedFallback(avatarUrl);
+                        if (signed && signed !== el.src) {
+                          el.src = signed;
+                          setAvatarPreview(signed);
+                          return;
+                        }
+                      }
+                      if (step !== "2") {
+                        el.dataset.fb = "2";
+                        el.src = fallbackAvatar(displayName);
+                      }
+                    }}
+                  />
                   {uploading && (
                     <div className="profile-avatar-overlay">
                       <Loader2 size={22} className="spin" />

@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  GeoJSON,
   MapContainer,
   Marker,
+  Polygon,
   TileLayer,
   useMap,
   useMapEvents,
@@ -43,12 +45,45 @@ type SearchHit = {
   type?: string;
 };
 
+type GeoBoundary = {
+  type: "Polygon" | "MultiPolygon";
+  coordinates: number[][][] | number[][][][];
+};
+
 interface LocationPickerModalProps {
   open: boolean;
   initialLat?: number | "";
   initialLng?: number | "";
+  /** Prefills search + auto-focuses map (e.g. "Barwara, Katni, Madhya Pradesh"). */
+  initialSearch?: string;
+  /** Optional Vidhan Sabha outline to show under the pin. */
+  contextBoundary?: GeoBoundary | null;
+  /** Land footprint in square meters — draws a square around the pin. */
+  areaSqMeters?: number;
+  areaLabel?: string;
   onClose: () => void;
   onConfirm: (coords: LatLng) => void;
+}
+
+const SQ_METERS_PER_ACRE = 4046.8564224;
+
+/** Axis-aligned square (approx) covering `areaSqMeters` around center. */
+export function squareRingAround(
+  center: LatLng,
+  areaSqMeters: number,
+): LatLng[] {
+  if (!Number.isFinite(areaSqMeters) || areaSqMeters <= 0) return [];
+  const sideM = Math.sqrt(areaSqMeters);
+  const half = sideM / 2;
+  const latDelta = half / 111_320;
+  const cosLat = Math.cos((center.lat * Math.PI) / 180);
+  const lngDelta = half / (111_320 * Math.max(0.2, cosLat));
+  return [
+    { lat: center.lat - latDelta, lng: center.lng - lngDelta },
+    { lat: center.lat - latDelta, lng: center.lng + lngDelta },
+    { lat: center.lat + latDelta, lng: center.lng + lngDelta },
+    { lat: center.lat + latDelta, lng: center.lng - lngDelta },
+  ];
 }
 
 function ClickToSetMarker({
@@ -82,6 +117,18 @@ function FlyToTarget({
       duration: 1.1,
     });
   }, [target, map, zoom]);
+  return null;
+}
+
+function FitLatLngs({ points }: { points: LatLng[] }) {
+  const map = useMap();
+  useEffect(() => {
+    if (points.length < 2) return;
+    const bounds = L.latLngBounds(points.map((p) => [p.lat, p.lng] as [number, number]));
+    if (bounds.isValid()) {
+      map.fitBounds(bounds.pad(0.2), { animate: true });
+    }
+  }, [points, map]);
   return null;
 }
 
@@ -127,6 +174,10 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
   open,
   initialLat,
   initialLng,
+  initialSearch = "",
+  contextBoundary = null,
+  areaSqMeters,
+  areaLabel,
   onClose,
   onConfirm,
 }) => {
@@ -158,25 +209,92 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState("");
   const [locating, setLocating] = useState(false);
+  const [bootstrapping, setBootstrapping] = useState(false);
   const searchSeq = useRef(0);
+  const bootstrapDone = useRef(false);
+
+  const landSquare = useMemo(() => {
+    if (!picked || !areaSqMeters || areaSqMeters <= 0) return [];
+    // Cap extreme sizes so map stays usable (e.g. typo 999999 acres)
+    const capped = Math.min(areaSqMeters, 50_000 * SQ_METERS_PER_ACRE);
+    return squareRingAround(picked, capped);
+  }, [picked, areaSqMeters]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      bootstrapDone.current = false;
+      return;
+    }
     setPicked(hasInitial ? start : null);
     setPlaceLabel("");
     setFlyTarget(null);
-    setQuery("");
+    setQuery(initialSearch.trim());
     setResults([]);
     setSearchError("");
-  }, [open, hasInitial, start]);
+  }, [open, hasInitial, start, initialSearch]);
+
+  // On open: search Vidhan Sabha / place and focus map
+  useEffect(() => {
+    if (!open || bootstrapDone.current) return;
+    const q = initialSearch.trim();
+    if (!q || hasInitial) {
+      bootstrapDone.current = true;
+      if (hasInitial) setFlyTarget({ ...start, zoom: 15 });
+      return;
+    }
+
+    bootstrapDone.current = true;
+    let cancelled = false;
+    setBootstrapping(true);
+    setSearching(true);
+    searchPlaces(q)
+      .then((hits) => {
+        if (cancelled) return;
+        const hit = hits[0];
+        if (!hit) {
+          setSearchError(
+            `Could not find “${q}” on the map — search manually or click the area.`,
+          );
+          return;
+        }
+        const lat = Number(hit.lat);
+        const lng = Number(hit.lon);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+        setPicked({ lat, lng });
+        setPlaceLabel(hit.display_name);
+        setQuery(shortPlaceName(hit.display_name));
+        setFlyTarget({ lat, lng, zoom: 13 });
+        setResults([]);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSearchError("Place search unavailable — zoom/click the map manually.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setSearching(false);
+          setBootstrapping(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, initialSearch, hasInitial, start]);
 
   useEffect(() => {
     if (!open) return;
+    // Skip live search while bootstrap owns the query
+    if (bootstrapping) return;
     const q = query.trim();
     if (q.length < 2) {
       setResults([]);
       setSearching(false);
-      setSearchError("");
+      return;
+    }
+    // Don't re-search the same bootstrap query immediately after auto-pick
+    if (initialSearch.trim() && q === shortPlaceName(initialSearch) && picked) {
       return;
     }
 
@@ -203,7 +321,7 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [query, open]);
+  }, [query, open, bootstrapping, initialSearch, picked]);
 
   if (!open) return null;
 
@@ -267,7 +385,9 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
             <div>
               <div className="loc-picker-title">Pick Location on Map</div>
               <div className="loc-picker-subtitle">
-                Search a place, or click the map to drop a pin
+                {initialSearch
+                  ? `Focused on ${initialSearch}. Click to set the land pin.`
+                  : "Search a place, or click the map to drop a pin"}
               </div>
             </div>
           </div>
@@ -284,7 +404,7 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
         <div className="loc-picker-body">
           <div className="loc-picker-search">
             <div className="loc-picker-search-box">
-              {searching ? (
+              {searching || bootstrapping ? (
                 <Loader2 size={18} className="spin" color="#2B964F" />
               ) : (
                 <Search size={18} color="#2B964F" />
@@ -336,20 +456,26 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
               </div>
             )}
 
-            {(searchError || searching) && results.length === 0 && query.trim().length >= 2 && (
-              <div className="loc-picker-search-status">
-                {searching ? "Searching…" : searchError}
-              </div>
-            )}
+            {(searchError || searching || bootstrapping) &&
+              results.length === 0 &&
+              query.trim().length >= 2 && (
+                <div className="loc-picker-search-status">
+                  {bootstrapping || searching
+                    ? "Finding Vidhan Sabha on map…"
+                    : searchError}
+                </div>
+              )}
           </div>
 
           <div className="loc-picker-hint">
             <MapPin size={14} />
-            Tap map to move pin
+            {landSquare.length
+              ? `Green square ≈ ${areaLabel || "land area"} around the pin (approximate)`
+              : "Tap map to move pin"}
           </div>
 
           <MapContainer
-            key={`map-${open}-${start.lat}-${start.lng}`}
+            key={`map-${open}-${initialSearch || "x"}-${hasInitial ? "pin" : "vs"}`}
             center={[start.lat, start.lng]}
             zoom={hasInitial ? 15 : 12}
             className="loc-picker-map"
@@ -361,6 +487,32 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
             />
             <MapAutoResize />
             <FlyToTarget target={flyTarget} />
+            {contextBoundary?.type && contextBoundary.coordinates ? (
+              <GeoJSON
+                key="vs-boundary"
+                data={contextBoundary as GeoJSON.GeoJsonObject}
+                style={{
+                  color: "#1b6b38",
+                  weight: 2,
+                  fillColor: "#2B964F",
+                  fillOpacity: 0.08,
+                }}
+              />
+            ) : null}
+            {landSquare.length >= 4 ? (
+              <>
+                <Polygon
+                  positions={landSquare.map((p) => [p.lat, p.lng] as [number, number])}
+                  pathOptions={{
+                    color: "#2B964F",
+                    weight: 2,
+                    fillColor: "#2B964F",
+                    fillOpacity: 0.22,
+                  }}
+                />
+                <FitLatLngs points={landSquare} />
+              </>
+            ) : null}
             <ClickToSetMarker
               position={picked}
               onPick={(coords) => pickAt(coords)}

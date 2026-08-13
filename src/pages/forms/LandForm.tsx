@@ -17,6 +17,7 @@ import {
 import { apiFetch } from "../../utils/apiConfig";
 import {
   recommendMaxTreeCapacity,
+  toAcres,
   type AreaUnit,
 } from "../../utils/landCapacity";
 import {
@@ -36,6 +37,10 @@ type RegisteredVidhanSabha = {
   district?: string;
   state?: string;
   status?: string;
+  boundary?: {
+    type: "Polygon" | "MultiPolygon";
+    coordinates: number[][][] | number[][][][];
+  } | null;
 };
 import { SmartForm } from "../../components/form/SmartForm";
 import type {
@@ -150,6 +155,48 @@ export const LandForm = () => {
   const recommended = useMemo(() => {
     const area = formData.totalArea === "" ? 0 : Number(formData.totalArea);
     return recommendMaxTreeCapacity(area, formData.areaUnit);
+  }, [formData.totalArea, formData.areaUnit]);
+
+  const selectedVs = useMemo(
+    () =>
+      registeredVs.find((v) => String(v._id) === formData.vidhanSabhaId) ||
+      null,
+    [registeredVs, formData.vidhanSabhaId],
+  );
+
+  const mapSearchQuery = useMemo(() => {
+    const vsName =
+      formData.vidhanSabha || selectedVs?.vidhanSabhaName || "";
+    return [vsName, formData.district, formData.state, formData.country || "India"]
+      .filter(Boolean)
+      .join(", ");
+  }, [
+    formData.vidhanSabha,
+    formData.district,
+    formData.state,
+    formData.country,
+    selectedVs?.vidhanSabhaName,
+  ]);
+
+  const landAreaSqMeters = useMemo(() => {
+    const area = formData.totalArea === "" ? 0 : Number(formData.totalArea);
+    if (!Number.isFinite(area) || area <= 0) return 0;
+    return toAcres(area, formData.areaUnit) * 4046.8564224;
+  }, [formData.totalArea, formData.areaUnit]);
+
+  const landAreaLabel = useMemo(() => {
+    if (formData.totalArea === "" || Number(formData.totalArea) <= 0) {
+      return "";
+    }
+    const unit =
+      formData.areaUnit === "SQ_FT"
+        ? "sq ft"
+        : formData.areaUnit === "SQ_METER"
+          ? "sq m"
+          : formData.areaUnit === "HECTARE"
+            ? "ha"
+            : "acre";
+    return `${formData.totalArea} ${unit}`;
   }, [formData.totalArea, formData.areaUnit]);
 
   const vsOptions: SelectOption[] = useMemo(() => {
@@ -392,7 +439,14 @@ export const LandForm = () => {
         type="button"
         className="btn-primary"
         onClick={() => setMapOpen(true)}
-        disabled={detecting}
+        disabled={detecting || !formData.district}
+        title={
+          !formData.district
+            ? "Select District (and Vidhan Sabha) first"
+            : formData.totalArea === ""
+              ? "Tip: fill Land Area first so the map can draw the approximate plot size"
+              : undefined
+        }
       >
         <MapPin size={16} style={{ marginRight: 6 }} />
         {isEditing ? "Update from Map" : "Pick Location on Map"}
@@ -523,31 +577,9 @@ export const LandForm = () => {
       ],
     },
     {
-      title: "Coordinates",
-      description:
-        "Pick on map or paste lat/lng, then auto-detect fills address hierarchy. All fields stay editable.",
-      icon: Navigation,
-      headerAction: coordinateActions,
-      fields: [
-        {
-          name: "latitude",
-          label: "Latitude",
-          type: "number",
-          icon: Navigation,
-          helpText: "Paste coords then click Auto Detect, or pick on map",
-        },
-        {
-          name: "longitude",
-          label: "Longitude",
-          type: "number",
-          icon: Navigation,
-        },
-      ],
-    },
-    {
       title: "Location Hierarchy",
       description:
-        "Auto-filled from coordinates — change any value if reverse geocoding is wrong.",
+        "Select Country → State → District → Vidhan Sabha first. Then set the land pin on the map below.",
       icon: Globe2,
       fields: [
         {
@@ -601,6 +633,28 @@ export const LandForm = () => {
       ],
     },
     {
+      title: "Coordinates",
+      description:
+        "Pick the exact land point inside the selected Vidhan Sabha. Auto-detect can fill address fields if needed.",
+      icon: Navigation,
+      headerAction: coordinateActions,
+      fields: [
+        {
+          name: "latitude",
+          label: "Latitude",
+          type: "number",
+          icon: Navigation,
+          helpText: "Pick on map inside the selected area, or paste lat/lng",
+        },
+        {
+          name: "longitude",
+          label: "Longitude",
+          type: "number",
+          icon: Navigation,
+        },
+      ],
+    },
+    {
       title: "Address",
       description: "Auto-filled from reverse geocoding — editable for corrections.",
       icon: MapPin,
@@ -650,7 +704,7 @@ export const LandForm = () => {
       <FormPageHeader
         icon={MapPinned}
         title={isEditing ? "Edit Land" : "Add Land"}
-        subtitle="Map → Lat/Lng → Auto address → Vidhan Sabha → edit if needed → Save"
+        subtitle="Location Hierarchy → Map pin (Coordinates) → Address → Save"
         onBack={() => navigate("/lands")}
       />
 
@@ -719,6 +773,12 @@ export const LandForm = () => {
         open={mapOpen}
         initialLat={formData.latitude}
         initialLng={formData.longitude}
+        initialSearch={mapSearchQuery}
+        contextBoundary={
+          selectedVs?.boundary?.type ? selectedVs.boundary : null
+        }
+        areaSqMeters={landAreaSqMeters || undefined}
+        areaLabel={landAreaLabel || undefined}
         onClose={() => setMapOpen(false)}
         onConfirm={async ({ lat, lng }) => {
           setFormData((prev) => ({

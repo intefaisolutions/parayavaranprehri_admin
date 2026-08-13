@@ -55,6 +55,29 @@
   background: rgba(220, 53, 69, 0.06);
 }
 
+.boundary-editor-status.is-info {
+  color: #8a5a00;
+  background: rgba(245, 180, 40, 0.12);
+  border-top-color: rgba(245, 180, 40, 0.35);
+}
+
+.boundary-editor-status-title {
+  font-weight: 700;
+  font-size: 13px;
+  margin-bottom: 4px;
+  color: inherit;
+}
+
+.boundary-editor-status-steps {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  line-height: 1.45;
+}
+
+.boundary-editor-status-steps li {
+  margin: 2px 0;
+}
+
 @media (max-width: 640px) {
   .boundary-editor-map {
     height: 340px;

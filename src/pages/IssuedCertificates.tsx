@@ -178,21 +178,16 @@ export const IssuedCertificatesView = () => {
             onClick={async () => {
               const cert = row.original;
               const text = buildCertificateShareText(issuedToPreviewData(cert));
+              // Open compose without locking to recipient number
+              // (avoids "number isn't on WhatsApp" on Desktop)
+              openWhatsAppShare({ text });
               try {
-                const result = await apiFetch<{
-                  success?: boolean;
-                  error?: string;
-                }>(`/api/v1/certificates/${cert._id}/share-whatsapp`, {
-                  method: "POST",
-                });
-                if (result?.success === false) {
-                  throw new Error(result.error || "Share failed");
-                }
+                await apiFetch(
+                  `/api/v1/certificates/${cert._id}/share-whatsapp`,
+                  { method: "POST" },
+                );
               } catch {
-                openWhatsAppShare({
-                  mobile: cert.recipientMobile,
-                  text,
-                });
+                /* compose already opened */
               }
             }}
           >

@@ -4,6 +4,7 @@ import { apiFetch } from "../../utils/apiConfig";
 import {
   buildCertificateShareText,
   downloadCertificatePdf,
+  isDemoCertificateCode,
   openWhatsAppShare,
   resolveSignedUrl,
 } from "./certificateShare";
@@ -102,36 +103,41 @@ export function CertificateMitraPreview({
 
   const handleWhatsApp = async () => {
     setActionMsg("");
+
+    // Template preview uses PP-PREVIEW / PP-DEMO-CODE — those are not in DB
+    if (!certificateId || isDemoCertificateCode(data.verificationCode)) {
+      setActionMsg(
+        "This is only a design preview. Go to Certificates → Issue, issue to a Mitra, then Share WhatsApp for a real working link.",
+      );
+      return;
+    }
+
     const text = buildCertificateShareText(data);
 
-    if (certificateId) {
+    // Open compose without locking to recipient number (may not be on WhatsApp)
+    openWhatsAppShare({ text });
+    setActionMsg(
+      "WhatsApp opened with the certificate link — pick any contact to send.",
+    );
+
+    if (recipientMobile) {
       setSharing(true);
       try {
         const result = await apiFetch<{ success?: boolean; error?: string }>(
           `/api/v1/certificates/${certificateId}/share-whatsapp`,
           { method: "POST" },
         );
-        if (result?.success === false) {
-          throw new Error(result.error || "WhatsApp API share failed");
+        if (result?.success) {
+          setActionMsg(
+            "Shared via WhatsApp API to recipient, and opened compose as backup.",
+          );
         }
-        setActionMsg("Shared via WhatsApp to the recipient’s mobile.");
-        return;
-      } catch (err: any) {
-        // Fallback to WhatsApp Web / app compose
-        openWhatsAppShare({ mobile: recipientMobile, text });
-        setActionMsg(
-          err?.message
-            ? `${err.message} — opened WhatsApp compose instead.`
-            : "Opened WhatsApp compose.",
-        );
-        return;
+      } catch {
+        /* compose already opened */
       } finally {
         setSharing(false);
       }
     }
-
-    openWhatsAppShare({ mobile: recipientMobile, text });
-    setActionMsg("Opened WhatsApp compose with certificate details.");
   };
 
   const actions = showActions ? (

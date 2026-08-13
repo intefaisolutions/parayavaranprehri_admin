@@ -14,6 +14,50 @@ export type GeoBoundary = {
 
 type LatLng = { lat: number; lng: number };
 
+type StatusTone = "neutral" | "success" | "error" | "info";
+
+type StatusBanner = {
+  tone: StatusTone;
+  title?: string;
+  message: string;
+  steps?: string[];
+};
+
+function isMissingBoundaryError(raw: string) {
+  const t = raw.toLowerCase();
+  return (
+    t.includes("boundary not found") ||
+    t.includes("no boundary") ||
+    t.includes("draw the boundary manually") ||
+    t.includes("draw polygon manually")
+  );
+}
+
+function bannerFromLoadError(err: unknown, name?: string): StatusBanner {
+  const raw = err instanceof Error ? err.message : "Could not load boundary";
+  const label = name?.trim() || "this Vidhan Sabha";
+
+  if (isMissingBoundaryError(raw)) {
+    return {
+      tone: "info",
+      title: `No ready boundary for “${label}”`,
+      message:
+        "This constituency is in the master list, but its map outline is not imported yet. That is normal — draw it once and save.",
+      steps: [
+        "Click Focus District to zoom to the area",
+        "Click Draw Polygon and outline the Vidhan Sabha",
+        "Click Save Vidhan Sabha",
+      ],
+    };
+  }
+
+  return {
+    tone: "error",
+    title: "Could not load boundary",
+    message: raw,
+  };
+}
+
 interface BoundaryMapEditorProps {
   boundary: GeoBoundary | null;
   onChange: (boundary: GeoBoundary | null) => void;
@@ -222,14 +266,28 @@ export const BoundaryMapEditor: React.FC<BoundaryMapEditorProps> = ({
   onFocusPlace,
 }) => {
   const rootRef = useRef<HTMLDivElement>(null);
-  const [status, setStatus] = useState("");
-  const [error, setError] = useState("");
+  const [banner, setBanner] = useState<StatusBanner>({
+    tone: "neutral",
+    message: "No boundary yet. Load Boundary or Draw Polygon.",
+  });
   const [loading, setLoading] = useState(false);
   const [flyTo, setFlyTo] = useState<(LatLng & { zoom?: number }) | null>(
     null,
   );
 
   const center = useMemo(() => ({ lat: 23.25, lng: 77.41 }), []);
+
+  useEffect(() => {
+    if (!boundary) return;
+    setBanner((prev) => {
+      if (prev.tone === "info" || prev.tone === "error") return prev;
+      if (prev.tone === "success") return prev;
+      return {
+        tone: "success",
+        message: "Boundary ready — Save Vidhan Sabha to store it.",
+      };
+    });
+  }, [boundary]);
 
   const dispatch = (eventName: string) => {
     rootRef.current?.dispatchEvent(
@@ -240,21 +298,29 @@ export const BoundaryMapEditor: React.FC<BoundaryMapEditorProps> = ({
   const handleFocusDistrict = async () => {
     if (!onFocusPlace) return;
     setLoading(true);
-    setError("");
     try {
       const c = await onFocusPlace();
       if (c) {
         setFlyTo({ ...c, zoom: district ? 11 : 8 });
-        setStatus(
-          district
-            ? `Map focused on ${district}${state ? `, ${state}` : ""}`
+        setBanner({
+          tone: "success",
+          message: district
+            ? `Map focused on ${district}${state ? `, ${state}` : ""}. Now Load Boundary or Draw Polygon.`
             : "Map focused",
-        );
+        });
       } else {
-        setError("Could not find that district on the map");
+        setBanner({
+          tone: "error",
+          title: "District not found on map",
+          message: "Try selecting the district again, or zoom the map manually.",
+        });
       }
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed to focus map");
+      setBanner({
+        tone: "error",
+        title: "Could not focus map",
+        message: e instanceof Error ? e.message : "Failed to focus map",
+      });
     } finally {
       setLoading(false);
     }
@@ -279,28 +345,35 @@ export const BoundaryMapEditor: React.FC<BoundaryMapEditorProps> = ({
   const handleAutoLoad = async () => {
     if (!onAutoLoad) return;
     if (!name?.trim() && !district?.trim()) {
-      setError("Enter Vidhan Sabha name (and district) before Auto Load");
+      setBanner({
+        tone: "info",
+        title: "Select Vidhan Sabha first",
+        message: "Choose a constituency from the list, then click Load Boundary.",
+      });
       return;
     }
     setLoading(true);
-    setError("");
-    setStatus("Loading boundary…");
+    setBanner({
+      tone: "neutral",
+      message: `Looking up boundary for “${name?.trim() || "selected Vidhan Sabha"}”…`,
+    });
     try {
       const result = await onAutoLoad();
       if (!result?.boundary) {
-        setError("No boundary found. Draw polygon manually.");
-        setStatus("");
+        setBanner(bannerFromLoadError(new Error("Boundary not found"), name));
         return;
       }
       onChange(result.boundary);
       if (result.center) setFlyTo({ ...result.center, zoom: 12 });
-      setStatus(
-        result.message ||
-          "Boundary loaded — edit if needed, then save the form.",
-      );
+      setBanner({
+        tone: "success",
+        title: "Boundary loaded",
+        message:
+          result.message ||
+          "Outline is on the map. Edit if needed, then Save Vidhan Sabha.",
+      });
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Auto Load failed");
-      setStatus("");
+      setBanner(bannerFromLoadError(e, name));
     } finally {
       setLoading(false);
     }
@@ -361,7 +434,10 @@ export const BoundaryMapEditor: React.FC<BoundaryMapEditorProps> = ({
             onClick={() => {
               dispatch("boundary:clear");
               onChange(null);
-              setStatus("Boundary cleared");
+              setBanner({
+                tone: "neutral",
+                message: "Boundary cleared. Load again or Draw Polygon.",
+              });
             }}
             disabled={!boundary}
           >
@@ -386,15 +462,33 @@ export const BoundaryMapEditor: React.FC<BoundaryMapEditorProps> = ({
 
       <div
         className={`boundary-editor-status${
-          error ? " is-error" : boundary ? " has-boundary" : ""
+          banner.tone === "error"
+            ? " is-error"
+            : banner.tone === "info"
+              ? " is-info"
+              : boundary || banner.tone === "success"
+                ? " has-boundary"
+                : ""
         }`}
+        role={banner.tone === "error" ? "alert" : "status"}
       >
-        {error
-          ? error
-          : status ||
-            (boundary
-              ? "Boundary ready — Save Vidhan Sabha to store it."
-              : "No boundary yet. Auto Load or Draw Polygon.")}
+        {banner.title ? (
+          <div className="boundary-editor-status-title">{banner.title}</div>
+        ) : null}
+        <div>{banner.message}</div>
+        {banner.steps?.length ? (
+          <ol className="boundary-editor-status-steps">
+            {banner.steps.map((step) => (
+              <li key={step}>{step}</li>
+            ))}
+          </ol>
+        ) : null}
+        {!banner.title &&
+        !banner.steps &&
+        !banner.message &&
+        boundary ? (
+          <div>Boundary ready — Save Vidhan Sabha to store it.</div>
+        ) : null}
       </div>
 
       <style>{`.spin{animation:bspin .9s linear infinite}@keyframes bspin{to{transform:rotate(360deg)}}`}</style>

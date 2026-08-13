@@ -253,11 +253,6 @@ export const VidhanSabhaDetailView = () => {
             icon: UserCog,
             fields: [
               {
-                label: "Assigned Admin",
-                value: vs.assignedAdmin || "—",
-                icon: UserCog,
-              },
-              {
                 label: "Created By",
                 value: vs.createdBy || "—",
                 icon: UserCog,

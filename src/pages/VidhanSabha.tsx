@@ -175,11 +175,6 @@ export const VidhanSabhaView = () => {
       enableSorting: true,
     },
     {
-      accessorKey: "assignedAdmin",
-      header: "Assigned Admin",
-      enableSorting: true,
-    },
-    {
       accessorKey: "status",
       header: "Status",
       cell: ({ row }) => (

@@ -32,6 +32,13 @@ import {
 import { SmartForm } from "../../components/form/SmartForm";
 import type { FormSectionConfig } from "../../components/form/SmartForm";
 import { FormPageHeader } from "../../components/form/FormPageHeader";
+import { LocationPickerModal } from "../../components/map/LocationPickerModal";
+import { InlineLocationPicker } from "../../components/map/InlineLocationPicker";
+import {
+  boundaryCentroid,
+  coordsFromLand,
+  forwardGeocodePlace,
+} from "../../utils/locationAutoFill";
 
 const OWNERSHIP_LABELS: Record<string, string> = {
   GOVERNMENT: "Government",
@@ -245,12 +252,20 @@ export const TreeForm = () => {
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [mapOpen, setMapOpen] = useState(false);
+  const [resolvingMap, setResolvingMap] = useState(false);
+  const [mapStatusNote, setMapStatusNote] = useState("");
+  /** Camera-only center when land has no saved pin (NOT the planting coordinates). */
+  const [mapViewCenter, setMapViewCenter] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
   const [landOptions, setLandOptions] = useState<
     { label: string; value: string; meta?: any }[]
   >([]);
   const [loadingLands, setLoadingLands] = useState(false);
   const [vsOptions, setVsOptions] = useState<
-    { label: string; value: string }[]
+    { label: string; value: string; meta?: any }[]
   >([]);
   const [loadingVs, setLoadingVs] = useState(false);
   const [mitras, setMitras] = useState<MitraOption[]>([]);
@@ -363,6 +378,7 @@ export const TreeForm = () => {
         const opts = items.map((v) => ({
           label: v.vidhanSabhaName,
           value: v.vidhanSabhaName,
+          meta: v,
         }));
         // Keep current VS visible when editing even if list is empty/filtered
         if (
@@ -372,6 +388,7 @@ export const TreeForm = () => {
           opts.unshift({
             label: formData.vidhanSabha,
             value: formData.vidhanSabha,
+            meta: undefined,
           });
         }
         setVsOptions(opts);
@@ -413,6 +430,113 @@ export const TreeForm = () => {
     formData.vidhanSabha,
     formData.landSearch,
   ]);
+
+  const selectedLand = useMemo(
+    () => landOptions.find((l) => l.value === formData.landId)?.meta,
+    [landOptions, formData.landId],
+  );
+
+  const selectedVs = useMemo(
+    () => vsOptions.find((v) => v.value === formData.vidhanSabha)?.meta,
+    [vsOptions, formData.vidhanSabha],
+  );
+
+  const landCoords = useMemo(() => {
+    const pair = coordsFromLand(selectedLand);
+    if (!pair) return { latitude: "" as const, longitude: "" as const };
+    return { latitude: pair.lat, longitude: pair.lng };
+  }, [selectedLand]);
+
+  const vsBoundary = selectedVs?.boundary?.type ? selectedVs.boundary : null;
+
+  const mapInitialLat =
+    formData.latitude !== "" ? formData.latitude : landCoords.latitude;
+  const mapInitialLng =
+    formData.longitude !== "" ? formData.longitude : landCoords.longitude;
+
+  /** When land has no saved pin, find a usable map center (VS / geocode). */
+  const resolvePlantingMapCenter = async (opts: {
+    landId: string;
+    land: any;
+    state: string;
+    district: string;
+    vidhanSabha: string;
+  }) => {
+    const { landId, land, state, district, vidhanSabha } = opts;
+    setResolvingMap(true);
+    setMapStatusNote("Finding map location for this land…");
+
+    try {
+      let landDoc = land;
+      let pair = coordsFromLand(landDoc);
+
+      if (!pair && landId) {
+        try {
+          landDoc = await apiFetch<any>(`/api/v1/lands/${landId}`);
+          pair = coordsFromLand(landDoc);
+        } catch {
+          /* keep list meta */
+        }
+      }
+
+      if (pair) {
+        setFormData((prev) => {
+          if (prev.landId !== landId) return prev;
+          return {
+            ...prev,
+            latitude: Number(pair!.lat.toFixed(6)),
+            longitude: Number(pair!.lng.toFixed(6)),
+            city:
+              prev.city ||
+              landDoc?.villageOrCity ||
+              landDoc?.village ||
+              landDoc?.tehsil ||
+              landDoc?.district ||
+              prev.city,
+          };
+        });
+        setMapStatusNote(
+          "Starting pin = Land Parcel map point. Drag it to the exact planting spot.",
+        );
+        return;
+      }
+
+      // Acres/khasra ≠ map pin. Only move the camera — user must click to set planting coords.
+      const vsMeta =
+        vsOptions.find((v) => v.value === vidhanSabha)?.meta || selectedVs;
+      const vsCenter = boundaryCentroid(vsMeta?.boundary);
+      if (vsCenter) {
+        setMapViewCenter(vsCenter);
+        setMapStatusNote(
+          "Land “Times” has no saved map pin (only acres/khasra). Map is only centered on Vidhan Sabha — this is NOT the land point. Click the map on the actual land to set the tree pin.",
+        );
+        return;
+      }
+
+      const queries = [
+        [vidhanSabha, district, state, "India"].filter(Boolean).join(", "),
+        [land?.khasraNumber ? `Khasra ${land.khasraNumber}` : "", district, state, "India"]
+          .filter(Boolean)
+          .join(", "),
+        [district, state, "India"].filter(Boolean).join(", "),
+      ];
+      for (const q of queries) {
+        const geo = await forwardGeocodePlace(q);
+        if (!geo) continue;
+        setMapViewCenter(geo);
+        setMapStatusNote(
+          "This land has no saved map pin. Map opened near the constituency only — click the exact planting spot on the land before Register.",
+        );
+        return;
+      }
+
+      setMapStatusNote(
+        "Could not find the area on map. Open “Pick on Map” and drop the pin on the actual land.",
+      );
+    } finally {
+      setResolvingMap(false);
+    }
+  };
 
   const oxygenPreview = useMemo(
     () =>
@@ -625,6 +749,19 @@ export const TreeForm = () => {
       }
       if (name === "landId") {
         const land = landOptions.find((l) => l.value === value)?.meta;
+        const village =
+          land?.villageOrCity ||
+          land?.village ||
+          land?.tehsil ||
+          land?.district ||
+          "";
+        const addressParts = [
+          land?.landAddress,
+          land?.landmark,
+          land?.khasraNumber ? `Khasra ${land.khasraNumber}` : "",
+        ].filter(Boolean);
+        const pair = coordsFromLand(land);
+
         return {
           ...prev,
           landId: value,
@@ -632,7 +769,13 @@ export const TreeForm = () => {
           vidhanSabha: land?.vidhanSabha || prev.vidhanSabha,
           state: land?.state || prev.state,
           district: land?.district || prev.district,
-          city: land?.villageOrCity || land?.village || prev.city,
+          city: village || prev.city,
+          location: addressParts.length
+            ? addressParts.join(", ")
+            : prev.location,
+          // Clear previous pin when switching lands; async resolver fills if missing
+          latitude: pair ? pair.lat : "",
+          longitude: pair ? pair.lng : "",
         };
       }
       if (name === "assignedMitraId") {
@@ -680,6 +823,30 @@ export const TreeForm = () => {
     }
     if (name === "personId" && !value) {
       setOwnerVehicles([]);
+    }
+    if (name === "landId") {
+      setMapViewCenter(null);
+      if (!value) {
+        setMapStatusNote("");
+        setResolvingMap(false);
+        return;
+      }
+      const land = landOptions.find((l) => l.value === value)?.meta;
+      const pair = coordsFromLand(land);
+      if (pair) {
+        setMapViewCenter(pair);
+        setMapStatusNote(
+          "Starting pin = Land Parcel map point. Drag it to the exact planting spot.",
+        );
+        return;
+      }
+      void resolvePlantingMapCenter({
+        landId: value,
+        land,
+        state: land?.state || formData.state,
+        district: land?.district || formData.district,
+        vidhanSabha: land?.vidhanSabha || formData.vidhanSabha,
+      });
     }
   };
 
@@ -785,6 +952,12 @@ export const TreeForm = () => {
       setError("Please select a Land parcel");
       return;
     }
+    if (formData.latitude === "" || formData.longitude === "") {
+      setError(
+        "Set Exact Planting Spot on the map (click the pin on the land). Land acres alone are not a map location.",
+      );
+      return;
+    }
 
     setSubmitting(true);
 
@@ -801,10 +974,8 @@ export const TreeForm = () => {
     // Never send O₂ / age — backend calculates them
     const payload = {
       ...rest,
-      latitude:
-        formData.latitude === "" ? undefined : Number(formData.latitude),
-      longitude:
-        formData.longitude === "" ? undefined : Number(formData.longitude),
+      latitude: Number(formData.latitude),
+      longitude: Number(formData.longitude),
       height: formData.height === "" ? undefined : Number(formData.height),
       dbh: formData.dbh === "" ? undefined : Number(formData.dbh),
       vidhanSabha: formData.vidhanSabha || undefined,
@@ -1230,15 +1401,33 @@ export const TreeForm = () => {
     {
       title: "Exact Planting Spot",
       description:
-        "Optional pin for the tree itself. State / District / Vidhan Sabha come from the selection above.",
+        "Village / City and starting pin come from the Land Parcel. Move the pin to where this tree was planted.",
       icon: MapPin,
+      headerAction: (
+        <button
+          type="button"
+          className="btn-primary"
+          onClick={() => setMapOpen(true)}
+          disabled={!formData.landId}
+          title={
+            formData.landId
+              ? "Open full-screen map picker"
+              : "Select a Land Parcel first"
+          }
+        >
+          <MapPin size={16} style={{ marginRight: 6 }} />
+          Pick on Map
+        </button>
+      ),
       fields: [
         {
           name: "city",
           label: "Village / City",
           type: "text",
           icon: Building2,
-          helpText: "Auto-filled from land locality when available",
+          helpText: formData.landId
+            ? "Auto-filled from selected Land Parcel — editable"
+            : "Select Land Parcel above to auto-fill",
         },
         {
           name: "location",
@@ -1246,12 +1435,14 @@ export const TreeForm = () => {
           type: "text",
           icon: MapPin,
           span: 2,
+          helpText: "Auto-filled from land address when available",
         },
         {
           name: "latitude",
           label: "Latitude",
           type: "number",
           icon: Navigation,
+          helpText: "Starts at land parcel — adjust via map",
         },
         {
           name: "longitude",
@@ -1260,6 +1451,31 @@ export const TreeForm = () => {
           icon: Navigation,
         },
       ],
+      customContent: (
+        <InlineLocationPicker
+          latitude={formData.latitude}
+          longitude={formData.longitude}
+          landLatitude={landCoords.latitude}
+          landLongitude={landCoords.longitude}
+          viewLatitude={mapViewCenter?.lat ?? ""}
+          viewLongitude={mapViewCenter?.lng ?? ""}
+          landId={formData.landId}
+          boundary={vsBoundary}
+          loading={resolvingMap}
+          statusNote={mapStatusNote}
+          onChange={({ lat, lng }) => {
+            setFormData((prev) => ({
+              ...prev,
+              latitude: Number(lat.toFixed(6)),
+              longitude: Number(lng.toFixed(6)),
+            }));
+            setMapViewCenter({ lat, lng });
+            setMapStatusNote(
+              "Planting pin set on map. Confirm it is on the land parcel, then Register.",
+            );
+          }}
+        />
+      ),
     },
   ];
 
@@ -1323,6 +1539,21 @@ export const TreeForm = () => {
           onCancel={() => navigate("/trees")}
         />
       </div>
+
+      <LocationPickerModal
+        open={mapOpen}
+        initialLat={mapInitialLat}
+        initialLng={mapInitialLng}
+        onClose={() => setMapOpen(false)}
+        onConfirm={({ lat, lng }) => {
+          setFormData((prev) => ({
+            ...prev,
+            latitude: Number(lat.toFixed(6)),
+            longitude: Number(lng.toFixed(6)),
+          }));
+          setMapOpen(false);
+        }}
+      />
 
       {showAddMitra && (
         <div

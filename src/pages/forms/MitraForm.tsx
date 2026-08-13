@@ -311,12 +311,17 @@ export const MitraForm = () => {
     e.preventDefault();
     setError("");
 
-    if (!formData.state || !formData.district) {
-      setError("Please select State and District");
+    // Assignment is optional — can be filled later on edit.
+    // If land is chosen, VS (and thus state/district) should be set.
+    if (formData.landId && !formData.vidhanSabha.trim()) {
+      setError("Select Vidhan Sabha before assigning a Land, or clear Land.");
       return;
     }
-    if (!formData.vidhanSabha.trim()) {
-      setError("Vidhan Sabha is required for assignment");
+    if (
+      formData.vidhanSabha.trim() &&
+      (!formData.state || !formData.district)
+    ) {
+      setError("Select State and District with Vidhan Sabha, or clear assignment.");
       return;
     }
 
@@ -333,9 +338,9 @@ export const MitraForm = () => {
 
     const payload = {
       ...rest,
-      vidhanSabha: formData.vidhanSabha,
-      state: formData.state,
-      district: formData.district,
+      vidhanSabha: formData.vidhanSabha.trim() || undefined,
+      state: formData.state || undefined,
+      district: formData.district || undefined,
       landId: landId || null,
       landName: landId ? landName || null : null,
       treeAssignment: landId
@@ -406,37 +411,37 @@ export const MitraForm = () => {
     {
       title: "Assignment",
       description:
-        "State → District → Vidhan Sabha (required). Land and tree are optional.",
+        "Optional — assign State → District → Vidhan Sabha now, or leave blank and assign later when editing this Mitra.",
       icon: MapPin,
       fields: [
         {
           name: "state",
-          label: "State",
+          label: "State (optional)",
           type: "select",
           icon: Building2,
-          required: true,
           options: getStateOptions(),
         },
         {
           name: "district",
-          label: "District",
+          label: "District (optional)",
           type: "select",
           icon: Landmark,
-          required: true,
           optionsFor: (data) => getDistrictOptions(data.state),
+          helpText: !formData.state
+            ? "Select State first if you want to assign a district"
+            : undefined,
         },
         {
           name: "vidhanSabha",
-          label: "Vidhan Sabha",
+          label: "Vidhan Sabha (optional)",
           type: "select",
           icon: Landmark,
-          required: true,
           options: vsOptions,
           disabled: !formData.district,
           helpText: loadingVs
             ? "Loading created Vidhan Sabhas…"
             : !formData.district
-              ? "Pick State and District first"
+              ? "Optional — pick State and District first to choose a VS"
               : vsOptions.length
                 ? `${vsOptions.length} created VS in ${formData.district}`
                 : "No created Vidhan Sabha for this district — create one under Location Masters → Vidhan Sabha",
@@ -449,7 +454,7 @@ export const MitraForm = () => {
           options: landOptions,
           disabled: !formData.vidhanSabha,
           helpText: !formData.vidhanSabha
-            ? "Select Vidhan Sabha first — then lands under it appear here"
+            ? "Optional — select Vidhan Sabha first to list lands"
             : loadingLands
               ? "Loading lands…"
               : landOptions.length

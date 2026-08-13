@@ -12,35 +12,85 @@ function formatDate(value?: string | Date) {
   });
 }
 
+/** Template/designer placeholders — not real DB verification codes. */
+export function isDemoCertificateCode(code?: string) {
+  const c = String(code || "")
+    .trim()
+    .toUpperCase();
+  if (!c) return true;
+  return (
+    c === "PP-PREVIEW" ||
+    c === "PP-DEMO-CODE" ||
+    c === "PP-XXXX-XXXX" ||
+    c.startsWith("PP-DEMO") ||
+    c.startsWith("PP-PREVIEW")
+  );
+}
+
+/** Public share URL — never expose raw S3 links in WhatsApp. */
+export function getCertificatePublicUrl(verificationCode?: string) {
+  const code = String(verificationCode || "").trim();
+  if (!code || isDemoCertificateCode(code)) return "";
+  const base = String(
+    import.meta.env.VITE_PUBLIC_SITE_URL ||
+      import.meta.env.VITE_APP_PUBLIC_URL ||
+      (typeof window !== "undefined" ? window.location.origin : ""),
+  ).replace(/\/$/, "");
+  return `${base}/certificate/${encodeURIComponent(code)}`;
+}
+
 export function buildCertificateShareText(data: CertificatePreviewData) {
+  const viewUrl = getCertificatePublicUrl(data.verificationCode);
   const lines = [
-    `Paryavaran Prahri Certificate`,
-    data.title || "Certificate of Appreciation",
-    data.recipientName ? `Recipient: ${data.recipientName}` : "",
-    data.eventName ? `Event: ${data.eventName}` : "",
+    `🌱 Paryavaran Prahri Certificate`,
+    ``,
+    data.recipientName
+      ? `Congratulations ${data.recipientName}!`
+      : `Congratulations!`,
+    ``,
+    `Your ${data.title || "Certificate of Appreciation"} is ready.`,
     data.certificateNumber
       ? `Certificate No: ${data.certificateNumber}`
       : "",
-    data.verificationCode
-      ? `Verify code: ${data.verificationCode}`
-      : "",
+    data.eventName ? `Event: ${data.eventName}` : "",
     data.issueDate ? `Issued: ${formatDate(data.issueDate)}` : "",
-  ].filter(Boolean);
-  return lines.join("\n");
+    viewUrl ? `` : "",
+    viewUrl ? `View Certificate:` : "",
+    viewUrl || "",
+    !viewUrl
+      ? `\n(Note: Issue a real certificate first to get a working view link.)`
+      : "",
+  ].filter((line, idx, arr) => {
+    // keep intentional blank lines only between content blocks
+    if (line !== "") return true;
+    return idx > 0 && arr[idx - 1] !== "";
+  });
+  return lines.join("\n").trim();
 }
 
+/**
+ * Opens WhatsApp with a prefilled message.
+ * By default does NOT lock to a phone number — many recipient mobiles
+ * are not on WhatsApp and then Desktop shows "isn't on WhatsApp".
+ * Pass `toRecipient: true` only when you intentionally want wa.me/<number>.
+ */
 export function openWhatsAppShare(opts: {
   mobile?: string;
   text: string;
+  /** If true, open chat with this mobile. Default false = pick any contact. */
+  toRecipient?: boolean;
 }) {
-  const digits = String(opts.mobile || "").replace(/\D/g, "");
-  const phone =
-    digits.length === 10
-      ? `91${digits}`
-      : digits.length > 10
-        ? digits
-        : "";
   const encoded = encodeURIComponent(opts.text);
+  let phone = "";
+  if (opts.toRecipient) {
+    const digits = String(opts.mobile || "").replace(/\D/g, "");
+    phone =
+      digits.length === 10
+        ? `91${digits}`
+        : digits.length >= 12
+          ? digits
+          : "";
+  }
   const url = phone
     ? `https://wa.me/${phone}?text=${encoded}`
     : `https://wa.me/?text=${encoded}`;
@@ -49,18 +99,12 @@ export function openWhatsAppShare(opts: {
 
 export async function resolveSignedUrl(url?: string): Promise<string> {
   if (!url?.trim()) return "";
-  // Already a signed query URL
-  if (/[?&]X-Amz-/.test(url) || url.startsWith("blob:") || url.startsWith("data:")) {
-    return url;
+  if (url.startsWith("blob:") || url.startsWith("data:")) return url;
+  // Prefer permanent S3 URL — signed GET often 403s in browser/print
+  if (/amazonaws\.com|\.s3[.-]/i.test(url)) {
+    return url.split("?")[0];
   }
-  try {
-    const data = await apiFetch<{ signedUrl: string }>(
-      `/api/v1/uploads/signed?url=${encodeURIComponent(url)}`,
-    );
-    return data?.signedUrl || url;
-  } catch {
-    return url;
-  }
+  return url;
 }
 
 /**
