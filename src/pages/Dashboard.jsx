@@ -66,6 +66,10 @@ const Dashboard = () => {
   const [recentPersons, setRecentPersons] = useState([]);
   const [recentNotifications, setRecentNotifications] = useState([]);
 
+  const [topOxygen, setTopOxygen] = useState([]);
+  const [topTrees, setTopTrees] = useState([]);
+  const [topLand, setTopLand] = useState([]);
+
   useEffect(() => {
     let isMounted = true;
 
@@ -93,7 +97,8 @@ const Dashboard = () => {
           activePersonsRes,
           sentNotificationsRes,
           recentPersonsRes,
-          recentNotificationsRes
+          recentNotificationsRes,
+          vidhanSabhasRes
         ] = await Promise.all([
           safeMeta("/api/v1/persons?limit=1"),
           safeMeta("/api/v1/vehicles"),
@@ -103,7 +108,8 @@ const Dashboard = () => {
           safeMeta("/api/v1/persons?limit=1&status=Active"),
           safeMeta("/api/v1/notifications?limit=1&status=Sent"),
           safeMeta("/api/v1/persons?limit=5&sortBy=createdAt&sortOrder=desc"),
-          safeMeta("/api/v1/notifications?limit=5&sortBy=createdAt&sortOrder=desc")
+          safeMeta("/api/v1/notifications?limit=5&sortBy=createdAt&sortOrder=desc"),
+          safeMeta("/api/v1/vidhan-sabhas?limit=500")
         ]);
 
         if (!isMounted) return;
@@ -119,6 +125,15 @@ const Dashboard = () => {
         });
         setRecentPersons(recentPersonsRes.items || []);
         setRecentNotifications(recentNotificationsRes.items || []);
+
+        const vsData = vidhanSabhasRes.items || [];
+        setTopOxygen([...vsData].sort((a, b) => (b.estimatedOxygenTonsPerYear || 0) - (a.estimatedOxygenTonsPerYear || 0)).slice(0, 5));
+        setTopTrees([...vsData].sort((a, b) => (b.totalTrees || 0) - (a.totalTrees || 0)).slice(0, 5));
+        setTopLand([...vsData].sort((a, b) => {
+          const landA = (a.governmentLandAcres || 0) + (a.privateLandAcres || 0);
+          const landB = (b.governmentLandAcres || 0) + (b.privateLandAcres || 0);
+          return landB - landA;
+        }).slice(0, 5));
       } catch (err) {
         if (isMounted) setError(err.message || "Failed to load dashboard data");
       } finally {
@@ -409,6 +424,98 @@ const Dashboard = () => {
           )}
         </div>
 
+      </div>
+
+      <div className="content-grid" style={{ marginTop: "24px", gridTemplateColumns: "repeat(3, 1fr)" }}>
+        {/* Top Oxygen */}
+        <div className="card">
+          <div className="card-header">
+            <h2 className="card-title">Top Oxygen Producers</h2>
+          </div>
+          {topOxygen.length === 0 ? (
+            <div style={{ padding: "16px", textAlign: "center", color: "var(--text-secondary)" }}>No data</div>
+          ) : (
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Vidhan Sabha</th>
+                  <th style={{ textAlign: "right" }}>Oxygen (Tons/Yr)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {topOxygen.map((vs, idx) => (
+                  <tr key={vs._id || idx}>
+                    <td>{vs.vidhanSabhaName}</td>
+                    <td style={{ textAlign: "right", color: "#00d2ff", fontWeight: "bold" }}>
+                      {formatNumber(vs.estimatedOxygenTonsPerYear)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* Top Trees */}
+        <div className="card">
+          <div className="card-header">
+            <h2 className="card-title">Highest Tree Count</h2>
+          </div>
+          {topTrees.length === 0 ? (
+            <div style={{ padding: "16px", textAlign: "center", color: "var(--text-secondary)" }}>No data</div>
+          ) : (
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Vidhan Sabha</th>
+                  <th style={{ textAlign: "right" }}>Trees</th>
+                </tr>
+              </thead>
+              <tbody>
+                {topTrees.map((vs, idx) => (
+                  <tr key={vs._id || idx}>
+                    <td>{vs.vidhanSabhaName}</td>
+                    <td style={{ textAlign: "right", color: "#00e676", fontWeight: "bold" }}>
+                      {formatNumber(vs.totalTrees)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* Top Land */}
+        <div className="card">
+          <div className="card-header">
+            <h2 className="card-title">Most Registered Land</h2>
+          </div>
+          {topLand.length === 0 ? (
+            <div style={{ padding: "16px", textAlign: "center", color: "var(--text-secondary)" }}>No data</div>
+          ) : (
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Vidhan Sabha</th>
+                  <th style={{ textAlign: "right" }}>Area (Acres)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {topLand.map((vs, idx) => {
+                  const area = (vs.governmentLandAcres || 0) + (vs.privateLandAcres || 0);
+                  return (
+                    <tr key={vs._id || idx}>
+                      <td>{vs.vidhanSabhaName}</td>
+                      <td style={{ textAlign: "right", color: "#ffb300", fontWeight: "bold" }}>
+                        {formatNumber(Math.round(area * 10) / 10)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
 
     </div>

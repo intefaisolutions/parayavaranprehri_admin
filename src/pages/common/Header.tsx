@@ -41,7 +41,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { apiFetch } from "../../utils/apiConfig";
+import { apiFetch, apiFetchMeta } from "../../utils/apiConfig";
 
 interface HeaderProps {
   onToggleMobileSidebar?: () => void;
@@ -140,6 +140,33 @@ const Header: React.FC<HeaderProps> = ({
   const headerFallbackAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=0D8ABC&color=fff`;
 
   const [avatarSrc, setAvatarSrc] = useState(headerFallbackAvatar);
+
+  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchPendingCounts = async () => {
+      try {
+        const [plantReq, rashiReq] = await Promise.all([
+          apiFetchMeta("/api/v1/plantations?status=PENDING&limit=1").catch(() => ({ total: 0 })),
+          apiFetchMeta("/api/v1/rashi-plant-requests?status=PENDING&limit=1").catch(() => ({ total: 0 }))
+        ]);
+        if (!cancelled) {
+          setPendingRequestsCount((plantReq?.total || 0) + (rashiReq?.total || 0));
+        }
+      } catch (err) {
+        // Ignore errors
+      }
+    };
+
+    fetchPendingCounts();
+    const interval = window.setInterval(fetchPendingCounts, 30000); // Poll every 30s
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, []);
 
   useEffect(() => {
     const refreshUser = () => {
@@ -531,8 +558,36 @@ const Header: React.FC<HeaderProps> = ({
       </div>
 
       <div className="topbar-actions">
-        <button type="button" className="icon-btn" aria-label="Notifications">
+        <button 
+          type="button" 
+          className="icon-btn" 
+          aria-label="Notifications"
+          style={{ position: "relative" }}
+        >
           <Bell size={20} />
+          {pendingRequestsCount > 0 && (
+            <span
+              style={{
+                position: "absolute",
+                top: "2px",
+                right: "2px",
+                background: "#ef4444",
+                color: "white",
+                fontSize: "10px",
+                fontWeight: "bold",
+                borderRadius: "50%",
+                width: "16px",
+                height: "16px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                pointerEvents: "none",
+                lineHeight: 1
+              }}
+            >
+              {pendingRequestsCount > 99 ? "99+" : pendingRequestsCount}
+            </span>
+          )}
         </button>
 
         <div className="user-profile-menu" ref={profileMenuRef}>
