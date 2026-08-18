@@ -563,6 +563,7 @@ const Header: React.FC<HeaderProps> = ({
           className="icon-btn" 
           aria-label="Notifications"
           style={{ position: "relative" }}
+          onClick={() => navigate("/rashi-plant-requests")}
         >
           <Bell size={20} />
           {pendingRequestsCount > 0 && (
