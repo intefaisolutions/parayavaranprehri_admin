@@ -499,8 +499,8 @@ export const MitraForm = () => {
           icon: Star,
           required: true,
           options: [
-            { label: "Free", value: "free" },
-            { label: "Premium", value: "premium" },
+            { label: "Free (Volunteer)", value: "free" },
+            { label: "Paid (Employee)", value: "premium" },
           ],
         },
         {
