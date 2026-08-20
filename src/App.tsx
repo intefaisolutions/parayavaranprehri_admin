@@ -56,7 +56,6 @@ import { PartnerForm } from "./pages/forms/PartnerForm";
 import { NotificationsView } from "./pages/NotificationsView";
 import { NotificationForm } from "./pages/forms/NotificationForm";
 import { CallCenterView } from "./pages/CallCenterView";
-import { CallCenterForm } from "./pages/forms/CallCenterForm";
 import { LanguagesView } from "./pages/LanguagesView";
 import { LanguageForm } from "./pages/forms/LanguageForm";
 
@@ -237,8 +236,6 @@ function App() {
           <Route path="/notifications/add" element={<NotificationForm />} />
           <Route path="/notifications/edit" element={<NotificationForm />} />
           <Route path="/callcenter" element={<CallCenterView />} />
-          <Route path="/callcenter/add" element={<CallCenterForm />} />
-          <Route path="/callcenter/edit" element={<CallCenterForm />} />
 
           <Route path="/languages" element={<LanguagesView />} />
           <Route path="/languages/add" element={<LanguageForm />} />

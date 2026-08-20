@@ -13,6 +13,7 @@ import {
   Loader2
 } from "lucide-react";
 import { apiFetchMeta } from "../utils/apiConfig";
+import StatCard from "../components/StatCard";
 
 const formatRelativeTime = (dateStr) => {
   if (!dateStr) return "";
@@ -174,7 +175,7 @@ const Dashboard = () => {
         ...(recentPersons.length
           ? recentPersons.map((p) => [
               p.name || "",
-              p.mobile || "",
+              p.mobile ? `\t${p.mobile}` : "",
               p.status || "",
               p.createdAt
                 ? new Date(p.createdAt).toLocaleString("en-IN")
@@ -193,6 +194,33 @@ const Dashboard = () => {
                 : "",
             ])
           : [["No recent notifications", "", ""]]),
+        [],
+        ["Top Oxygen Producers"],
+        ["Vidhan Sabha", "Oxygen (Tons/Yr)"],
+        ...(topOxygen.length
+          ? topOxygen.map((vs) => [
+              vs.vidhanSabhaName || "",
+              vs.estimatedOxygenTonsPerYear || 0,
+            ])
+          : [["No data", ""]]),
+        [],
+        ["Highest Tree Count"],
+        ["Vidhan Sabha", "Trees"],
+        ...(topTrees.length
+          ? topTrees.map((vs) => [
+              vs.vidhanSabhaName || "",
+              vs.totalTrees || 0,
+            ])
+          : [["No data", ""]]),
+        [],
+        ["Most Registered Land"],
+        ["Vidhan Sabha", "Area (Acres)"],
+        ...(topLand.length
+          ? topLand.map((vs) => {
+              const area = (vs.governmentLandAcres || 0) + (vs.privateLandAcres || 0);
+              return [vs.vidhanSabhaName || "", Math.round(area * 10) / 10];
+            })
+          : [["No data", ""]]),
       ];
 
       downloadCsv(`dashboard_report_${stamp}.csv`, rows);
@@ -301,21 +329,14 @@ const Dashboard = () => {
         style={{ gridTemplateColumns: "repeat(4, 1fr)" }}
       >
         {statCards.map((item, index) => (
-          <div className="stat-card" key={index}>
-            <div className="stat-header">
-              <span className="stat-title">{item.title}</span>
-
-              <div className="stat-icon" style={{ color: item.color }}>
-                {item.icon}
-              </div>
-            </div>
-
-            <div className="stat-value">{formatNumber(item.value)}</div>
-
-            <div className="stat-trend" style={{ color: "var(--text-secondary)" }}>
-              <span>Live count</span>
-            </div>
-          </div>
+          <StatCard
+            key={index}
+            title={item.title}
+            value={formatNumber(item.value)}
+            icon={item.icon}
+            color={item.color}
+            showLiveCount={true}
+          />
         ))}
       </div>
 
@@ -327,19 +348,15 @@ const Dashboard = () => {
         }}
       >
         {secondaryCards.map((item, index) => (
-          <div className="stat-card" key={index}>
-            <div className="stat-header">
-              <span className="stat-title">{item.title}</span>
-
-              <div className="stat-icon" style={{ color: item.color }}>
-                {item.icon}
-              </div>
-            </div>
-
-            <div className="stat-value" style={{ color: item.color }}>
-              {formatNumber(item.value)}
-            </div>
-          </div>
+          <StatCard
+            key={index}
+            title={item.title}
+            value={formatNumber(item.value)}
+            icon={item.icon}
+            color={item.color}
+            valueColor={item.color}
+            showLiveCount={false}
+          />
         ))}
       </div>
 

@@ -109,7 +109,7 @@ const menuSections = [
   {
     title: "7. Support & Reports",
     items: [
-      { id: "callcenter", icon: PhoneCall, label: "Call Center" },
+      { id: "callcenter", icon: PhoneCall, label: "Call Center & FAQ's" },
       { id: "languages", icon: Languages, label: "Languages" },
       { id: "reports", icon: Download, label: "Reports" },
     ],

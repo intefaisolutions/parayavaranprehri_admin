@@ -1152,9 +1152,9 @@ button {
 }
 
 .stat-card:hover {
-  transform: translateY(-5px);
-  border-color: rgba(255, 255, 255, 0.2);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  transform: translateY(-4px);
+  border-color: var(--border-color-hover, #ccc);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
 }
 
 .stat-header {
@@ -1285,7 +1285,7 @@ button {
 .data-table td {
   padding: 16px;
   font-size: 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid var(--border-color, rgba(0, 0, 0, 0.05));
 }
 
 .data-table tr:last-child td {
@@ -1297,7 +1297,7 @@ button {
 }
 
 .data-table tr:hover td {
-  background: rgba(255, 255, 255, 0.02);
+  background: rgba(0, 0, 0, 0.02);
 }
 
 .status-badge {
