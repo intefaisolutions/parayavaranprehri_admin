@@ -66,7 +66,7 @@ export const LoginView = ({ onLogin }: { onLogin: () => void }) => {
     try {
       const data = await apiFetch<AuthResponse>('/api/v1/auth/login', {
         method: 'POST',
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, source: 'admin' }),
       });
       persistSession(data);
     } catch (err: any) {
@@ -79,7 +79,7 @@ export const LoginView = ({ onLogin }: { onLogin: () => void }) => {
   const requestOtp = async () => {
     await apiFetch('/api/v1/auth/otp/request', {
       method: 'POST',
-      body: JSON.stringify({ phone }),
+      body: JSON.stringify({ phone, source: 'admin' }),
     });
     startResendCooldown();
   };
@@ -128,7 +128,7 @@ export const LoginView = ({ onLogin }: { onLogin: () => void }) => {
     try {
       const data = await apiFetch<AuthResponse>('/api/v1/auth/otp/verify', {
         method: 'POST',
-        body: JSON.stringify({ phone, code }),
+        body: JSON.stringify({ phone, code, source: 'admin' }),
       });
       persistSession(data);
     } catch (err: any) {
