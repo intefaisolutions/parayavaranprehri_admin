@@ -14,7 +14,15 @@ interface MitraEvent {
   location: string;
   organizer?: string;
   description?: string;
+  eventType?: string;
   isActive?: boolean;
+  offlineDetails?: {
+    venue?: string;
+    city?: string;
+  };
+  onlineDetails?: {
+    platform?: string;
+  };
 }
 
 const toDate = (value?: string) => (value ? value.slice(0, 10) : "—");
@@ -70,7 +78,34 @@ export const MitraEventsView = () => {
       cell: ({ row }) => toDate(row.original.date),
     },
     { accessorKey: "time", header: "Time" },
-    { accessorKey: "location", header: "Location", enableSorting: true },
+    {
+      accessorKey: "eventType",
+      header: "Type",
+      cell: ({ row }) => {
+        const type = row.original.eventType || "Offline";
+        return (
+          <span className={`status-badge ${type === "Online" ? "status-info" : type === "Hybrid" ? "status-warning" : "status-active"}`}>
+            {type}
+          </span>
+        );
+      },
+    },
+    {
+      accessorKey: "location",
+      header: "Location",
+      enableSorting: true,
+      cell: ({ row }) => {
+        const ev = row.original;
+        if (ev.eventType === "Online") {
+          return ev.onlineDetails?.platform || "Online";
+        }
+        if (ev.eventType === "Hybrid") {
+          const loc = ev.offlineDetails?.city || ev.offlineDetails?.venue || ev.location;
+          return loc ? `${loc} + Online` : "Hybrid (Online + Offline)";
+        }
+        return ev.offlineDetails?.city || ev.offlineDetails?.venue || ev.location || "—";
+      },
+    },
     { accessorKey: "organizer", header: "Organizer" },
     {
       accessorKey: "isActive",

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { AlertTriangle, ShieldCheck, AlignLeft } from "lucide-react";
+import { AlertTriangle, ShieldCheck, AlignLeft, Image } from "lucide-react";
 import { apiFetch } from "../../utils/apiConfig";
 import { SmartForm } from "../../components/form/SmartForm";
 import type { FormSectionConfig } from "../../components/form/SmartForm";
@@ -15,6 +15,7 @@ interface StatusFormData {
   reportedByName?: string;
   status: string;
   resolutionNotes?: string;
+  photoUrls?: string[];
 }
 
 export const FieldIssueStatusForm = () => {
@@ -141,6 +142,33 @@ export const FieldIssueStatusForm = () => {
         subtitle="Change status and add resolution notes"
         onBack={() => navigate("/field-issues")}
       />
+      
+      {issue?.photoUrls && issue.photoUrls.length > 0 && (
+        <div className="card" style={{ marginBottom: 24, padding: 24 }}>
+          <h3 style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Image size={20} />
+            Attached Photos
+          </h3>
+          <div style={{ display: 'flex', gap: 16, overflowX: 'auto' }}>
+            {issue.photoUrls.map((url, index) => (
+              <a href={url} target="_blank" rel="noopener noreferrer" key={index}>
+                <img
+                  src={url}
+                  alt={`Issue photo ${index + 1}`}
+                  style={{
+                    width: 200,
+                    height: 200,
+                    objectFit: 'cover',
+                    borderRadius: 8,
+                    border: '1px solid #eee'
+                  }}
+                />
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="card">
         <SmartForm
           sections={sections}

@@ -21,6 +21,8 @@ interface Task {
   dueDate: string;
   priority: string;
   status: string;
+  proofDescription?: string;
+  proofMediaUrl?: string;
 }
 
 export const TasksView = () => {
@@ -120,6 +122,24 @@ export const TasksView = () => {
         >
           {row.original.status}
         </span>
+      ),
+    },
+    {
+      id: "proof",
+      header: "Proof of Work",
+      cell: ({ row }) => (
+        row.original.status === "Completed" ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <div title={row.original.proofDescription} style={{ fontSize: '0.85em', color: '#666', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {row.original.proofDescription || 'No description'}
+            </div>
+            {row.original.proofMediaUrl && (
+              <a href={row.original.proofMediaUrl} target="_blank" rel="noreferrer" style={{ fontSize: '0.85em', color: '#059669', textDecoration: 'underline' }}>
+                View Media
+              </a>
+            )}
+          </div>
+        ) : "-"
       ),
     },
     {

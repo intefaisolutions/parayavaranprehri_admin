@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Edit, Loader2 } from "lucide-react";
+import { Edit, Loader2, Image as ImageIcon } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import DataTable from "../components/DataTable";
 import { apiFetch } from "../utils/apiConfig";
@@ -16,6 +16,7 @@ interface FieldIssue {
   status: string;
   createdAt?: string;
   resolutionNotes?: string;
+  photoUrls?: string[];
 }
 
 const statusClass = (status: string) => {
@@ -95,6 +96,20 @@ export const FieldIssuesView = () => {
         row.original.createdAt
           ? new Date(row.original.createdAt).toLocaleDateString()
           : "—",
+    },
+    {
+      accessorKey: "photoUrls",
+      header: "Photos",
+      cell: ({ row }) => (
+        row.original.photoUrls && row.original.photoUrls.length > 0 ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#666' }}>
+            <ImageIcon size={16} />
+            <span>{row.original.photoUrls.length}</span>
+          </div>
+        ) : (
+          <span style={{ color: '#aaa' }}>—</span>
+        )
+      ),
     },
     {
       header: "Actions",
