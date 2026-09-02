@@ -67,6 +67,7 @@ const menuSections = [
       { id: "persons", icon: Users, label: "Person Management" },
       { id: "identity", icon: FileBadge, label: "Person Identity" },
       { id: "vehicles", icon: Car, label: "Vehicle Management" },
+      { id: "vehicle-tree-rules", icon: TreePine, label: "Vehicle Tree Rules" },
       { id: "mitras", icon: UserCheck, label: "Paryavaran Mitra" },
     ],
   },

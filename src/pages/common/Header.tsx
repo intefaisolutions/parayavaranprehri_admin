@@ -74,6 +74,7 @@ const PAGE_ITEMS: Array<{
   { id: "persons", label: "Person Management", path: "/persons", icon: Users, keywords: "people citizen" },
   { id: "identity", label: "Person Identity", path: "/identity", icon: FileBadge },
   { id: "vehicles", label: "Vehicle Management", path: "/vehicles", icon: Car },
+  { id: "vehicle-tree-rules", label: "Vehicle Tree Rules", path: "/vehicle-tree-rules", icon: TreePine, keywords: "vehicle rules trees" },
   { id: "mitras", label: "Paryavaran Mitra", path: "/mitras", icon: UserCheck, keywords: "volunteer mitra" },
   { id: "plantations", label: "Plantation Requests", path: "/plantations", icon: Sprout },
   { id: "trees", label: "Tree Management", path: "/trees", icon: TreePine },
@@ -105,6 +106,19 @@ function asArray<T>(data: unknown): T[] {
     return (data as any).items as T[];
   }
   return [];
+}
+
+async function resolveSignedFallback(url?: string): Promise<string> {
+  if (!url) return "";
+  const permanent = url.split("?")[0];
+  try {
+    const data = await apiFetch<{ signedUrl: string }>(
+      `/api/v1/uploads/signed?url=${encodeURIComponent(permanent)}`,
+    );
+    return data?.signedUrl || permanent;
+  } catch {
+    return permanent;
+  }
 }
 
 const Header: React.FC<HeaderProps> = ({
@@ -178,6 +192,25 @@ const Header: React.FC<HeaderProps> = ({
     };
     window.addEventListener("user-updated", refreshUser);
     window.addEventListener("storage", refreshUser);
+
+    // Fetch latest profile on mount
+    apiFetch("/api/v1/users/me")
+      .then((me: any) => {
+        if (me && me.avatar !== undefined) {
+          try {
+            const stored = JSON.parse(localStorage.getItem("user") || "{}");
+            const updated = { ...stored, ...me };
+            localStorage.setItem("user", JSON.stringify(updated));
+            setStoredUser(updated);
+          } catch {
+            // ignore
+          }
+        }
+      })
+      .catch(() => {
+        // ignore errors
+      });
+
     return () => {
       window.removeEventListener("user-updated", refreshUser);
       window.removeEventListener("storage", refreshUser);
@@ -615,11 +648,22 @@ const Header: React.FC<HeaderProps> = ({
                 src={avatarSrc || headerFallbackAvatar}
                 alt=""
                 referrerPolicy="no-referrer"
-                onError={(ev) => {
+                onError={async (ev) => {
                   const el = ev.currentTarget;
-                  if (el.dataset.fb === "1") return;
-                  el.dataset.fb = "1";
-                  el.src = headerFallbackAvatar;
+                  const step = el.dataset.fb || "0";
+                  if (step === "0" && avatarSrc && avatarSrc !== headerFallbackAvatar) {
+                    el.dataset.fb = "1";
+                    const signed = await resolveSignedFallback(avatarSrc);
+                    if (signed && signed !== el.src) {
+                      el.src = signed;
+                      setAvatarSrc(signed);
+                      return;
+                    }
+                  }
+                  if (step !== "2") {
+                    el.dataset.fb = "2";
+                    el.src = headerFallbackAvatar;
+                  }
                 }}
               />
             </div>

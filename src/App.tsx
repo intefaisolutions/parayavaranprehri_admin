@@ -13,6 +13,8 @@ import { TreesView } from "./pages/Trees";
 import { TreeForm } from "./pages/forms/TreeForm";
 import { TreeMastersView } from "./pages/TreeMasters";
 import { TreeMasterForm } from "./pages/forms/TreeMasterForm";
+import { VehicleTreeRulesView } from "./pages/VehicleTreeRules";
+import { VehicleTreeRuleForm } from "./pages/forms/VehicleTreeRuleForm";
 import { PlantationsView } from "./pages/Plantations";
 import { PlantationForm } from "./pages/forms/PlantationForm";
 import { LandsView } from "./pages/Lands";
@@ -166,6 +168,9 @@ function App() {
           <Route path="/persons/view" element={<PersonForm />} />
           <Route path="/vehicles" element={<VehiclesView />} />
           <Route path="/vehicles/view" element={<VehicleView />} />
+          <Route path="/vehicle-tree-rules" element={<VehicleTreeRulesView />} />
+          <Route path="/vehicle-tree-rules/add" element={<VehicleTreeRuleForm />} />
+          <Route path="/vehicle-tree-rules/edit" element={<VehicleTreeRuleForm />} />
           <Route path="/trees" element={<TreesView />} />
           <Route path="/trees/add" element={<TreeForm />} />
           <Route path="/trees/edit" element={<TreeForm />} />

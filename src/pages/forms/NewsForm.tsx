@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Newspaper, Tag, Image as ImageIcon, User, CalendarDays, ShieldCheck, Hash } from "lucide-react";
+import { Newspaper, Tag, Image as ImageIcon, User, CalendarDays, ShieldCheck, Hash, Link } from "lucide-react";
 import { apiFetch } from "../../utils/apiConfig";
 import { SmartForm } from "../../components/form/SmartForm";
 import type { FormSectionConfig } from "../../components/form/SmartForm";
@@ -12,6 +12,7 @@ export interface NewsFormData {
   content: string;
   category: string;
   image?: string;
+  url?: string;
   author: string;
   publishedDate?: string;
   views?: string | number;
@@ -24,6 +25,7 @@ const emptyForm: NewsFormData = {
   content: "",
   category: "Environment",
   image: "",
+  url: "",
   author: "",
   publishedDate: "",
   views: "",
@@ -98,6 +100,7 @@ export const NewsForm = () => {
       icon: Newspaper,
       fields: [
         { name: "title", label: "News Title", type: "text", icon: Newspaper, required: true, span: 2 },
+        { name: "url", label: "Source URL (Link)", type: "text", icon: Link, placeholder: "https://example.com/news", span: 2 },
         { name: "content", label: "Content", type: "textarea", icon: Newspaper, required: true, span: 2, rows: 6 },
         {
           name: "category",
