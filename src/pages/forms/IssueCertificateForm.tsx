@@ -13,6 +13,13 @@ export interface MitraOption {
   mobile: string;
 }
 
+export interface PersonOption {
+  _id: string;
+  personId: string;
+  name: string;
+  mobile: string;
+}
+
 export interface TemplateOption {
   _id: string;
   templateName: string;
@@ -27,6 +34,7 @@ export interface IssueCertificateFormData {
   recipientType: "MITRA" | "USER";
   recipientId: string;
   recipientName: string;
+  recipientMobile: string;
   templateId: string;
   title: string;
   description: string;
@@ -38,6 +46,7 @@ const emptyForm: IssueCertificateFormData = {
   recipientType: "MITRA",
   recipientId: "",
   recipientName: "",
+  recipientMobile: "",
   templateId: "",
   title: "Certificate of Appreciation",
   description: "",
@@ -60,21 +69,55 @@ export const IssueCertificateForm = () => {
     ...emptyForm,
     recipientId: prefill?.mitra?.mitraId || "",
     recipientName: prefill?.mitra?.name || "",
+    recipientMobile: prefill?.mitra?.mobile || "",
     templateId: prefill?.template?._id || "",
   });
 
   const [mitras, setMitras] = useState<MitraOption[]>([]);
+  const [persons, setPersons] = useState<PersonOption[]>([]);
   const [templates, setTemplates] = useState<TemplateOption[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
     Promise.all([
-      apiFetch<MitraOption[]>("/api/v1/mitras?status=Approved"),
+      apiFetch<any>("/api/v1/mitras?status=Approved&limit=1000"),
+      apiFetch<any>("/api/v1/persons?limit=1000"),
+      apiFetch<any>("/api/v1/users?limit=1000").catch(() => []),
       apiFetch<TemplateOption[]>("/api/v1/certificates/templates"),
     ])
-      .then(([mitraList, templateList]) => {
-        setMitras(mitraList || []);
+      .then(([mitraRes, personRes, userRes, templateList]) => {
+        const mitraList = Array.isArray(mitraRes) ? mitraRes : mitraRes?.data || [];
+        const personList = Array.isArray(personRes) ? personRes : personRes?.data || [];
+        const userList = Array.isArray(userRes) ? userRes : userRes?.data || [];
+
+        const byKey = new Map<string, PersonOption>();
+        personList.forEach((p: any) => {
+          const key = p.mobile || p._id;
+          if (key) {
+            byKey.set(key, {
+              _id: p._id,
+              personId: p.personId || p._id,
+              name: p.name || `${p.firstName || ''} ${p.lastName || ''}`.trim() || 'Citizen',
+              mobile: p.mobile || '',
+            });
+          }
+        });
+        userList.forEach((u: any) => {
+          const phone = u.phone || u.mobile;
+          const name = `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.name;
+          if (phone && !byKey.has(phone)) {
+            byKey.set(phone, {
+              _id: u._id,
+              personId: u._id,
+              name: name || 'Citizen',
+              mobile: phone,
+            });
+          }
+        });
+
+        setMitras(mitraList);
+        setPersons(Array.from(byKey.values()));
         setTemplates(
           (templateList || []).filter((t) => t.status !== "Inactive"),
         );
@@ -86,13 +129,25 @@ export const IssueCertificateForm = () => {
 
   const handleFieldChange = (name: string, value: any) => {
     setFormData((prev) => {
-      if (name === "recipientId" && prev.recipientType === "MITRA") {
-        const mitra = mitras.find((m) => m.mitraId === value);
-        return {
-          ...prev,
-          recipientId: value,
-          recipientName: mitra?.name || prev.recipientName,
-        };
+      if (name === "recipientId") {
+        if (prev.recipientType === "MITRA") {
+          const mitra = mitras.find((m) => m.mitraId === value);
+          return {
+            ...prev,
+            recipientId: value,
+            recipientName: mitra?.name || prev.recipientName,
+            recipientMobile: mitra?.mobile || prev.recipientMobile,
+          };
+        }
+        if (prev.recipientType === "USER") {
+          const person = persons.find((p) => p._id === value || p.personId === value);
+          return {
+            ...prev,
+            recipientId: value,
+            recipientName: person?.name || prev.recipientName,
+            recipientMobile: person?.mobile || prev.recipientMobile,
+          };
+        }
       }
       if (name === "recipientType") {
         return {
@@ -100,6 +155,7 @@ export const IssueCertificateForm = () => {
           recipientType: value,
           recipientId: "",
           recipientName: "",
+          recipientMobile: "",
         };
       }
       return { ...prev, [name]: value };
@@ -116,11 +172,16 @@ export const IssueCertificateForm = () => {
     [mitras, formData.recipientId],
   );
 
+  const selectedPerson = useMemo(
+    () => persons.find((p) => p._id === formData.recipientId || p.personId === formData.recipientId),
+    [persons, formData.recipientId],
+  );
+
   const previewData = useMemo(() => {
     const name =
       formData.recipientType === "MITRA"
         ? selectedMitra?.name || formData.recipientName || "Mitra Name"
-        : formData.recipientName || "Recipient Name";
+        : selectedPerson?.name || formData.recipientName || "Paryavaran Prahri Name";
 
     return {
       title: formData.title || "Certificate of Appreciation",
@@ -133,9 +194,9 @@ export const IssueCertificateForm = () => {
       signatureUrl: selectedTemplate?.signatureUrl,
       backgroundUrl: selectedTemplate?.backgroundUrl,
       templateName: selectedTemplate?.templateName,
-      certificateType: selectedTemplate?.certificateType,
+      certificateType: selectedTemplate?.certificateType || (formData.recipientType === "MITRA" ? "Mitra" : "Paryavaran Prahri"),
     };
-  }, [formData, selectedMitra, selectedTemplate]);
+  }, [formData, selectedMitra, selectedPerson, selectedTemplate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -147,6 +208,8 @@ export const IssueCertificateForm = () => {
         templateId: formData.templateId,
         recipientType: formData.recipientType,
         recipientId: formData.recipientId,
+        recipientName: formData.recipientName,
+        recipientMobile: formData.recipientMobile || undefined,
         title: formData.title,
         description: formData.description || undefined,
         eventName: formData.eventName || undefined,
@@ -154,9 +217,6 @@ export const IssueCertificateForm = () => {
           ? new Date(formData.issueDate).toISOString()
           : undefined,
       };
-      if (formData.recipientType === "USER") {
-        payload.recipientName = formData.recipientName;
-      }
 
       await apiFetch("/api/v1/certificates", {
         method: "POST",
@@ -183,37 +243,48 @@ export const IssueCertificateForm = () => {
           icon: Users,
           required: true,
           options: [
-            { label: "Paryavaran Mitra (Volunteer)", value: "MITRA" },
-            { label: "Other User", value: "USER" },
+            { label: "🌿 Paryavaran Mitra (Volunteer)", value: "MITRA" },
+            { label: "👤 Paryavaran Prahri (User / Citizen)", value: "USER" },
           ],
           span: 2,
         },
         {
           name: "recipientId",
-          label: "Select Mitra",
+          label: "Select Paryavaran Mitra",
           type: "select",
           icon: Users,
           required: true,
           span: 2,
           visibleWhen: (data) => data.recipientType === "MITRA",
           options: mitras.map((m) => ({
-            label: `${m.name} (${m.mitraId}) - ${m.mobile}`,
+            label: `🌿 ${m.name} (${m.mitraId}) - Phone: ${m.mobile}`,
             value: m.mitraId,
           })),
         },
         {
           name: "recipientId",
-          label: "Recipient ID",
-          type: "text",
+          label: "Select Paryavaran Prahri (User)",
+          type: "select",
+          icon: Users,
           required: true,
+          span: 2,
           visibleWhen: (data) => data.recipientType === "USER",
+          options: persons.map((p) => ({
+            label: `👤 ${p.name} (${p.personId || "ID: " + p._id.slice(-6)}) - Phone: ${p.mobile}`,
+            value: p._id,
+          })),
         },
         {
           name: "recipientName",
           label: "Recipient Name",
           type: "text",
           required: true,
-          visibleWhen: (data) => data.recipientType === "USER",
+        },
+        {
+          name: "recipientMobile",
+          label: "Mobile Number",
+          type: "text",
+          placeholder: "e.g. +919876543210",
         },
       ],
     },

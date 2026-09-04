@@ -121,8 +121,41 @@ export const IssuedCertificatesView = () => {
     { accessorKey: "certificateNumber", header: "Certificate No.", enableSorting: true },
     { accessorKey: "recipientName", header: "Recipient", enableSorting: true },
     {
-      header: "Type",
-      cell: ({ row }) => (row.original.recipientType === "MITRA" ? "Mitra" : "User"),
+      header: "Recipient Type",
+      cell: ({ row }) =>
+        row.original.recipientType === "MITRA" ? (
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "4px",
+              padding: "4px 10px",
+              borderRadius: "12px",
+              background: "#dcfce7",
+              color: "#16a34a",
+              fontWeight: 600,
+              fontSize: "12px",
+            }}
+          >
+            🌿 Paryavaran Mitra
+          </span>
+        ) : (
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "4px",
+              padding: "4px 10px",
+              borderRadius: "12px",
+              background: "#e0f2fe",
+              color: "#0284c7",
+              fontWeight: 600,
+              fontSize: "12px",
+            }}
+          >
+            👤 Paryavaran Prahri (User)
+          </span>
+        ),
     },
     { accessorKey: "title", header: "Title", enableSorting: true },
     {
