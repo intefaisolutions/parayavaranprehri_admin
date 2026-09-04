@@ -49,6 +49,7 @@ export interface PersonFormData {
   treesAssigned?: number | string;
   status: string;
   source?: string;
+  roles?: string[];
   insuranceVerified?: boolean;
   lastLoginAt?: string | null;
   createdBy?: string;
@@ -187,6 +188,7 @@ export const PersonForm = () => {
             vehicleData.vehiclesLinked ?? detail.vehiclesLinked ?? 0,
           treesAssigned: detail.treesAssigned ?? 0,
           insuranceVerified: hasActive,
+          roles: detail.roles || [],
           lastLoginAt: detail.lastLoginAt || null,
         });
         setInsuranceSummary({
@@ -237,6 +239,7 @@ export const PersonForm = () => {
       createdBy: _cb,
       updatedBy: _ub,
       lastLoginAt: _ll,
+      roles: _rl,
       ...rest
     } = formData;
     const payload: Record<string, any> = {};
@@ -304,6 +307,27 @@ export const PersonForm = () => {
               .join(" · ") || undefined
           }
           badges={[
+            (() => {
+              const roles = formData.roles || [];
+              const isPrahri = roles.includes("PARYAVARAN_PRAHRI");
+              const isMitra = roles.includes("MITRA");
+              
+              let label = "User";
+              let tone: any = "success";
+
+              if (isPrahri && isMitra) {
+                label = "Prahri + Mitra";
+                tone = "warning";
+              } else if (isPrahri) {
+                label = "Paryavaran Prahri";
+                tone = "warning";
+              } else if (isMitra) {
+                label = "Mitra";
+                tone = "info";
+              }
+              
+              return { label, tone };
+            })(),
             {
               label: formData.status || "Active",
               tone: formData.status === "Active" ? "success" : "neutral",

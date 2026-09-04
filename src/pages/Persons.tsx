@@ -23,6 +23,7 @@ interface Person {
   photo?: string;
   vehiclesLinked: number;
   treesAssigned: number;
+  roles?: string[];
   status: string;
   source?: string;
   insuranceVerified?: boolean;
@@ -103,6 +104,38 @@ export const PersonsView = () => {
           {row.original.source === "app" ? "App" : "Admin"}
         </span>
       ),
+      enableSorting: false,
+    },
+    {
+      accessorKey: "roles",
+      header: "Type",
+      cell: ({ row }) => {
+        const roles = row.original.roles || [];
+        if (roles.length === 0) return <span style={{ color: "var(--text-secondary)" }}>—</span>;
+        
+        const isPrahri = roles.includes("PARYAVARAN_PRAHRI");
+        const isMitra = roles.includes("MITRA");
+
+        let label = "User";
+        let badgeClass = "status-badge status-active";
+
+        if (isPrahri && isMitra) {
+          label = "Prahri + Mitra";
+          badgeClass = "status-badge status-warning";
+        } else if (isPrahri) {
+          label = "Paryavaran Prahri";
+          badgeClass = "status-badge status-warning";
+        } else if (isMitra) {
+          label = "Mitra";
+          badgeClass = "status-badge status-info"; // using a different style if needed, or status-active
+        }
+
+        return (
+          <span className={badgeClass}>
+            {label}
+          </span>
+        );
+      },
       enableSorting: false,
     },
     {

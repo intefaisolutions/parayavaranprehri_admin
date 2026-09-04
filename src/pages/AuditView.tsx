@@ -9,6 +9,7 @@ import { apiFetch } from "../utils/apiConfig";
 interface AuditLog {
   _id: string;
   userName: string;
+  roles?: string[];
   role?: string;
   moduleName: string;
   actionType: string;
@@ -70,7 +71,7 @@ export const AuditView = () => {
 
   const columns: ColumnDef<AuditLog>[] = [
     { accessorKey: "userName", header: "User Name", enableSorting: true },
-    { accessorKey: "role", header: "Role", enableSorting: true, cell: ({ row }) => row.original.role || "—" },
+    { accessorKey: "role", header: "Role", enableSorting: true, cell: ({ row }) => (row.original.roles?.length ? row.original.roles.join(', ') : row.original.role) || "—" },
     { accessorKey: "moduleName", header: "Module Name", enableSorting: true },
     {
       accessorKey: "actionType",

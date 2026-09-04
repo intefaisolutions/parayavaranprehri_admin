@@ -147,7 +147,7 @@ const Header: React.FC<HeaderProps> = ({
     ? `${storedUser.firstName} ${storedUser.lastName || ""}`.trim()
     : storedUser.email || storedUser.phone || "Command Center Admin";
 
-  const displayRole = (storedUser.role || "Super Admin")
+  const displayRole = (storedUser.roles?.length ? storedUser.roles.join(', ') : (storedUser.role || "Super Admin"))
     .toString()
     .replace(/_/g, " ");
 

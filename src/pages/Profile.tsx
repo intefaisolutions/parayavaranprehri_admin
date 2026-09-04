@@ -22,6 +22,7 @@ interface MeUser {
   lastName?: string;
   email?: string;
   phone?: string;
+  roles?: string[];
   role?: string;
   district?: string;
   state?: string;
@@ -119,7 +120,7 @@ export const ProfileView = () => {
     user?.email ||
     "Admin";
 
-  const roleLabel = (user?.role || "").replace(/_/g, " ");
+  const roleLabel = (user?.roles?.length ? user.roles.join(', ') : (user?.role || "")).replace(/_/g, " ");
 
   const syncLocalUser = (patch: Record<string, unknown>) => {
     try {
