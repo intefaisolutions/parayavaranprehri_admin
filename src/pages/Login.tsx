@@ -1,9 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Leaf, Phone, Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
+import { Leaf, Phone, Loader2, AlertCircle } from 'lucide-react';
 import { apiFetch } from '../utils/apiConfig';
 import { OtpInput } from '../components/form/OtpInput';
-
-type LoginMode = 'PASSWORD' | 'OTP';
 
 const RESEND_COOLDOWN_SECONDS = 45;
 
@@ -14,12 +12,6 @@ interface AuthResponse {
 }
 
 export const LoginView = ({ onLogin }: { onLogin: () => void }) => {
-  const [mode, setMode] = useState<LoginMode>('PASSWORD');
-
-  // Email & password login
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-
   // Mobile OTP login
   const [step, setStep] = useState<'PHONE' | 'OTP'>('PHONE');
   const [phone, setPhone] = useState('');
@@ -56,24 +48,6 @@ export const LoginView = ({ onLogin }: { onLogin: () => void }) => {
     localStorage.setItem('refreshToken', data.refreshToken);
     localStorage.setItem('user', JSON.stringify(data.user));
     onLogin();
-  };
-
-  const handlePasswordLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-
-    try {
-      const data = await apiFetch<AuthResponse>('/api/v1/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ email, password, source: 'admin' }),
-      });
-      persistSession(data);
-    } catch (err: any) {
-      setError(err.message || 'Invalid email or password');
-    } finally {
-      setLoading(false);
-    }
   };
 
   const requestOtp = async () => {
@@ -143,25 +117,13 @@ export const LoginView = ({ onLogin }: { onLogin: () => void }) => {
     await verifyOtp(otp);
   };
 
-  // Auto-submit as soon as all 4 digits are present — covers manual typing,
-  // pasting, and browser/SMS autofill alike (not just the OtpInput
-  // `onComplete` callback, which some autofill paths can bypass). Re-fires
-  // whenever `otp` changes to a fresh 4-digit value, so retrying after a
-  // failed attempt still auto-verifies.
+  // Auto-submit as soon as all 4 digits are present
   useEffect(() => {
-    if (mode === 'OTP' && step === 'OTP' && otp.length === 4 && !loading) {
+    if (step === 'OTP' && otp.length === 4 && !loading) {
       verifyOtp(otp);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [otp, step, mode]);
-
-  const switchMode = (next: LoginMode) => {
-    setMode(next);
-    setError('');
-    setStep('PHONE');
-    setOtp('');
-    setPhone('');
-  };
+  }, [otp, step]);
 
   return (
     <div className="login-shell">
@@ -176,23 +138,6 @@ export const LoginView = ({ onLogin }: { onLogin: () => void }) => {
           Super Admin Command Center
         </p>
 
-        <div className="login-tabs">
-          <button
-            type="button"
-            onClick={() => switchMode('PASSWORD')}
-            className={`login-tab ${mode === 'PASSWORD' ? 'active' : ''}`}
-          >
-            <Lock size={14} /> Email &amp; Password
-          </button>
-          <button
-            type="button"
-            onClick={() => switchMode('OTP')}
-            className={`login-tab ${mode === 'OTP' ? 'active' : ''}`}
-          >
-            <Phone size={14} /> Mobile OTP
-          </button>
-        </div>
-
         {error && (
           <div className="login-error">
             <AlertCircle size={16} style={{ flexShrink: 0 }} />
@@ -200,40 +145,7 @@ export const LoginView = ({ onLogin }: { onLogin: () => void }) => {
           </div>
         )}
 
-        {mode === 'PASSWORD' ? (
-          <form onSubmit={handlePasswordLogin}>
-            <div className="login-field">
-              <label>Email</label>
-              <div className="login-input-wrap">
-                <Mail size={18} color="var(--text-secondary)" />
-                <input
-                  type="email"
-                  placeholder="superadmin@paryavaran.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  autoFocus
-                  required
-                />
-              </div>
-            </div>
-            <div className="login-field" style={{ marginBottom: 24 }}>
-              <label>Password</label>
-              <div className="login-input-wrap">
-                <Lock size={18} color="var(--text-secondary)" />
-                <input
-                  type="password"
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-              </div>
-            </div>
-            <button type="submit" className="btn-primary login-submit" disabled={loading}>
-              {loading ? <Loader2 size={18} className="spin" /> : 'Login'}
-            </button>
-          </form>
-        ) : step === 'PHONE' ? (
+        {step === 'PHONE' ? (
           <form onSubmit={handleSendOtp}>
             <div className="login-field" style={{ marginBottom: 24 }}>
               <label>Mobile Number</label>
@@ -309,3 +221,4 @@ export const LoginView = ({ onLogin }: { onLogin: () => void }) => {
     </div>
   );
 };
+
