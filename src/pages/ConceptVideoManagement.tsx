@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   Play,
   Save,
@@ -8,11 +8,30 @@ import {
   AlertCircle,
   RefreshCw,
   X,
+  UploadCloud,
+  FileVideo,
+  Link as LinkIcon,
+  Trash2,
+  FolderOpen,
 } from "lucide-react";
-import { apiFetch } from "../utils/apiConfig";
+import { apiFetch, apiUpload } from "../utils/apiConfig";
 
 export const YOUTUBE_URL_REGEX =
   /^(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|v\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})(?:[?&/]\S*)?$/;
+
+export const isDirectVideoUrl = (url: string): boolean => {
+  if (!url) return false;
+  const clean = url.trim().toLowerCase();
+  return (
+    clean.endsWith(".mp4") ||
+    clean.endsWith(".m3u8") ||
+    clean.endsWith(".webm") ||
+    clean.endsWith(".mov") ||
+    clean.includes("s3.amazonaws.com") ||
+    clean.includes("storage.googleapis.com") ||
+    clean.includes("/uploads/")
+  );
+};
 
 interface ConceptVideoData {
   _id?: string;
@@ -37,10 +56,20 @@ export const ConceptVideoManagementView = () => {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
+  const [uploadingThumbnail, setUploadingThumbnail] = useState(false);
+
+  const [videoSourceMode, setVideoSourceMode] = useState<"youtube" | "upload">("youtube");
+  const [videoDragActive, setVideoDragActive] = useState(false);
+  const [thumbnailDragActive, setThumbnailDragActive] = useState(false);
+
   const [successMsg, setSuccessMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [isPlayerOpen, setIsPlayerOpen] = useState(false);
   const [playHovered, setPlayHovered] = useState(false);
+
+  const videoFileInputRef = useRef<HTMLInputElement>(null);
+  const thumbnailFileInputRef = useRef<HTMLInputElement>(null);
 
   const extractYoutubeId = (url: string): string => {
     if (!url) return "";
@@ -49,8 +78,18 @@ export const ConceptVideoManagementView = () => {
   };
 
   const currentYtId = extractYoutubeId(videoData.videoUrl);
+  const isDirectVideo = isDirectVideoUrl(videoData.videoUrl);
   const hasUrlInput = Boolean(videoData.videoUrl.trim());
-  const isUrlValid = Boolean(currentYtId);
+  const isUrlValid = Boolean(currentYtId || isDirectVideo);
+
+  // Sync mode based on loaded videoUrl
+  useEffect(() => {
+    if (isDirectVideo) {
+      setVideoSourceMode("upload");
+    } else if (currentYtId) {
+      setVideoSourceMode("youtube");
+    }
+  }, [videoData.videoUrl]);
 
   // Close player modal on Esc key press
   useEffect(() => {
@@ -91,6 +130,100 @@ export const ConceptVideoManagementView = () => {
     }));
   };
 
+  // Upload Video File Handler
+  const handleVideoFileUpload = async (file: File) => {
+    if (!file) return;
+    if (!file.type.startsWith("video/") && !file.name.match(/\.(mp4|mov|webm|m3u8)$/i)) {
+      setErrorMsg("Selected file is not a valid video format. Please upload MP4, MOV, or WEBM.");
+      return;
+    }
+    setUploadingVideo(true);
+    setErrorMsg("");
+    try {
+      const res = await apiUpload(file, "general");
+      if (res && res.url) {
+        setVideoData((prev) => ({
+          ...prev,
+          videoUrl: res.url,
+          youtubeId: "",
+        }));
+        setSuccessMsg("Video file uploaded successfully from gallery!");
+        setTimeout(() => setSuccessMsg(""), 4000);
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || "Failed to upload video file");
+    } finally {
+      setUploadingVideo(false);
+    }
+  };
+
+  // Upload Thumbnail File Handler
+  const handleThumbnailFileUpload = async (file: File) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/") && !file.name.match(/\.(jpg|jpeg|png|webp|gif)$/i)) {
+      setErrorMsg("Selected file is not a valid image format. Please upload JPG, PNG, or WEBP.");
+      return;
+    }
+    setUploadingThumbnail(true);
+    setErrorMsg("");
+    try {
+      const res = await apiUpload(file, "general");
+      if (res && res.url) {
+        setVideoData((prev) => ({
+          ...prev,
+          thumbnailUrl: res.url,
+        }));
+        setSuccessMsg("Thumbnail image uploaded successfully from gallery!");
+        setTimeout(() => setSuccessMsg(""), 4000);
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || "Failed to upload thumbnail image");
+    } finally {
+      setUploadingThumbnail(false);
+    }
+  };
+
+  // Drag & Drop Handlers for Video
+  const handleVideoDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setVideoDragActive(true);
+    } else if (e.type === "dragleave") {
+      setVideoDragActive(false);
+    }
+  };
+
+  const handleVideoDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setVideoDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      setVideoSourceMode("upload");
+      handleVideoFileUpload(e.dataTransfer.files[0]);
+    }
+  };
+
+  // Drag & Drop Handlers for Thumbnail
+  const handleThumbnailDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setThumbnailDragActive(true);
+    } else if (e.type === "dragleave") {
+      setThumbnailDragActive(false);
+    }
+  };
+
+  const handleThumbnailDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setThumbnailDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleThumbnailFileUpload(e.dataTransfer.files[0]);
+    }
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -98,9 +231,15 @@ export const ConceptVideoManagementView = () => {
     setErrorMsg("");
 
     const ytId = extractYoutubeId(videoData.videoUrl);
-    if (!ytId) {
+    if (!videoData.videoUrl.trim()) {
+      setErrorMsg("Please enter a YouTube video URL or upload a video file.");
+      setSaving(false);
+      return;
+    }
+
+    if (!ytId && !isDirectVideoUrl(videoData.videoUrl)) {
       setErrorMsg(
-        "Invalid YouTube URL. Please provide a valid watch, youtu.be, or shorts link before saving."
+        "Invalid video URL. Please enter a valid YouTube link or upload a video file."
       );
       setSaving(false);
       return;
@@ -111,7 +250,7 @@ export const ConceptVideoManagementView = () => {
         method: "POST",
         body: JSON.stringify({
           ...videoData,
-          youtubeId: ytId,
+          youtubeId: ytId || "",
         }),
       });
 
@@ -132,14 +271,14 @@ export const ConceptVideoManagementView = () => {
   const handlePlayClick = () => {
     if (!isUrlValid) {
       setErrorMsg(
-        "Cannot play preview: Please enter a valid YouTube URL (e.g. watch, youtu.be, or shorts link)."
+        "Cannot play preview: Please enter a valid YouTube URL or upload a video file."
       );
       return;
     }
     setIsPlayerOpen(true);
   };
 
-  // Determine thumbnail to display: custom url, or youtube thumbnail with fallback
+  // Effective thumbnail image
   const effectiveThumbnail =
     videoData.thumbnailUrl.trim() ||
     (currentYtId
@@ -160,12 +299,10 @@ export const ConceptVideoManagementView = () => {
               fontWeight: 700,
             }}
           >
-            <Video size={26} color="var(--accent-color, #10b981)" /> Concept Video
-            Settings
+            <Video size={26} color="var(--accent-color, #10b981)" /> Concept Video Settings
           </h1>
           <p style={{ color: "var(--text-secondary)", marginTop: 4 }}>
-            Manage the main educational Concept Video displayed on the Mobile
-            App Dashboard.
+            Manage the main educational Concept Video displayed on the Mobile App Dashboard (YouTube Link or Gallery/File Upload).
           </p>
         </div>
       </div>
@@ -254,74 +391,257 @@ export const ConceptVideoManagementView = () => {
             )}
           </div>
 
-          <form onSubmit={handleSave} style={{ display: "grid", gap: 18 }}>
-            {/* YOUTUBE URL */}
+          <form onSubmit={handleSave} style={{ display: "grid", gap: 20 }}>
+            {/* VIDEO SOURCE MODE SELECTOR TABS */}
             <div>
               <label
                 style={{
                   display: "block",
                   fontSize: 13,
                   fontWeight: 600,
-                  marginBottom: 6,
+                  marginBottom: 8,
                   color: "var(--text-primary)",
                 }}
               >
-                YouTube Video URL <span style={{ color: "#ef4444" }}>*</span>
+                Choose Video Input Method <span style={{ color: "#ef4444" }}>*</span>
               </label>
-              <div style={{ position: "relative" }}>
-                <input
-                  type="url"
-                  required
-                  placeholder="https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-                  value={videoData.videoUrl}
-                  onChange={(e) => handleUrlChange(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "10px 12px 10px 38px",
-                    borderRadius: 10,
-                    border:
-                      hasUrlInput && !isUrlValid
-                        ? "1px solid #ef4444"
-                        : "1px solid var(--border-color, #e5e7eb)",
-                    fontSize: 14,
-                    outline: "none",
-                  }}
-                />
-                <Video
-                  size={18}
-                  color="#ff0000"
-                  style={{ position: "absolute", left: 12, top: 12 }}
-                />
-              </div>
 
-              {/* URL HELPER & VALIDATION FEEDBACK */}
-              {hasUrlInput && !isUrlValid ? (
-                <span
+              <div
+                style={{
+                  display: "flex",
+                  gap: 10,
+                  marginBottom: 14,
+                  background: "#f1f5f9",
+                  padding: 4,
+                  borderRadius: 10,
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setVideoSourceMode("youtube")}
                   style={{
-                    fontSize: 12,
-                    color: "#dc2626",
-                    marginTop: 6,
+                    flex: 1,
+                    padding: "8px 14px",
+                    borderRadius: 8,
+                    border: "none",
+                    background: videoSourceMode === "youtube" ? "#ffffff" : "transparent",
+                    color: videoSourceMode === "youtube" ? "#0f172a" : "#64748b",
+                    fontWeight: 700,
+                    fontSize: 13,
                     display: "flex",
                     alignItems: "center",
-                    gap: 6,
-                    fontWeight: 500,
+                    justifyContent: "center",
+                    gap: 8,
+                    boxShadow: videoSourceMode === "youtube" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
                   }}
                 >
-                  <AlertCircle size={14} /> Invalid YouTube link. Supported:
-                  watch?v=..., youtu.be/..., shorts/...
-                </span>
-              ) : (
-                <span
+                  <Video size={16} color={videoSourceMode === "youtube" ? "#ff0000" : "#64748b"} />
+                  YouTube URL
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setVideoSourceMode("upload")}
                   style={{
-                    fontSize: 12,
-                    color: "var(--text-secondary)",
-                    marginTop: 4,
-                    display: "block",
+                    flex: 1,
+                    padding: "8px 14px",
+                    borderRadius: 8,
+                    border: "none",
+                    background: videoSourceMode === "upload" ? "#ffffff" : "transparent",
+                    color: videoSourceMode === "upload" ? "#0f172a" : "#64748b",
+                    fontWeight: 700,
+                    fontSize: 13,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 8,
+                    boxShadow: videoSourceMode === "upload" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
                   }}
                 >
-                  Supports YouTube standard (watch?v=...), Short URLs (youtu.be/...),
-                  or YouTube Shorts (/shorts/...)
-                </span>
+                  <FolderOpen size={16} color={videoSourceMode === "upload" ? "#10b981" : "#64748b"} />
+                  Gallery / Drag & Drop
+                </button>
+              </div>
+
+              {/* YOUTUBE URL INPUT MODE */}
+              {videoSourceMode === "youtube" && (
+                <div>
+                  <div style={{ position: "relative" }}>
+                    <input
+                      type="url"
+                      placeholder="https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+                      value={videoData.videoUrl}
+                      onChange={(e) => handleUrlChange(e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: "10px 12px 10px 38px",
+                        borderRadius: 10,
+                        border:
+                          hasUrlInput && !isUrlValid
+                            ? "1px solid #ef4444"
+                            : "1px solid var(--border-color, #e5e7eb)",
+                        fontSize: 14,
+                        outline: "none",
+                      }}
+                    />
+                    <Video
+                      size={18}
+                      color="#ff0000"
+                      style={{ position: "absolute", left: 12, top: 12 }}
+                    />
+                  </div>
+
+                  {hasUrlInput && !isUrlValid ? (
+                    <span
+                      style={{
+                        fontSize: 12,
+                        color: "#dc2626",
+                        marginTop: 6,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        fontWeight: 500,
+                      }}
+                    >
+                      <AlertCircle size={14} /> Invalid YouTube link. Supported: watch?v=..., youtu.be/..., shorts/...
+                    </span>
+                  ) : (
+                    <span
+                      style={{
+                        fontSize: 12,
+                        color: "var(--text-secondary)",
+                        marginTop: 4,
+                        display: "block",
+                      }}
+                    >
+                      Supports YouTube standard (watch?v=...), Short URLs (youtu.be/...), or YouTube Shorts (/shorts/...)
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* GALLERY / FILE UPLOAD & DRAG & DROP MODE */}
+              {videoSourceMode === "upload" && (
+                <div>
+                  <input
+                    type="file"
+                    ref={videoFileInputRef}
+                    accept="video/mp4,video/mov,video/webm,video/*"
+                    style={{ display: "none" }}
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        handleVideoFileUpload(e.target.files[0]);
+                      }
+                    }}
+                  />
+
+                  <div
+                    onDragEnter={handleVideoDrag}
+                    onDragLeave={handleVideoDrag}
+                    onDragOver={handleVideoDrag}
+                    onDrop={handleVideoDrop}
+                    onClick={() => videoFileInputRef.current?.click()}
+                    style={{
+                      border: videoDragActive
+                        ? "2px dashed #10b981"
+                        : "2px dashed #cbd5e1",
+                      background: videoDragActive ? "#ecfdf5" : "#f8fafc",
+                      borderRadius: 12,
+                      padding: "24px 16px",
+                      textAlign: "center",
+                      cursor: "pointer",
+                      transition: "all 0.2s ease",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 8,
+                    }}
+                  >
+                    {uploadingVideo ? (
+                      <>
+                        <RefreshCw size={28} color="#10b981" className="spin" />
+                        <span style={{ fontSize: 14, fontWeight: 700, color: "#10b981" }}>
+                          Uploading video file to cloud...
+                        </span>
+                        <span style={{ fontSize: 12, color: "#64748b" }}>
+                          Please wait while your video file is processed
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <div
+                          style={{
+                            width: 48,
+                            height: 48,
+                            borderRadius: 24,
+                            background: "#e0f2fe",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            marginBottom: 4,
+                          }}
+                        >
+                          <UploadCloud size={24} color="#0284c7" />
+                        </div>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: "#1e293b" }}>
+                          Drag & Drop video file here
+                        </span>
+                        <span style={{ fontSize: 12, color: "#64748b" }}>
+                          or <strong style={{ color: "#0284c7" }}>click to browse from Gallery / Device</strong>
+                        </span>
+                        <span style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>
+                          Supports MP4, MOV, WEBM (Max 100MB)
+                        </span>
+                      </>
+                    )}
+                  </div>
+
+                  {isDirectVideo && (
+                    <div
+                      style={{
+                        marginTop: 10,
+                        padding: "8px 12px",
+                        background: "#f1f5f9",
+                        borderRadius: 8,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        fontSize: 12,
+                      }}
+                    >
+                      <span
+                        style={{
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          maxWidth: "80%",
+                          color: "#334155",
+                          fontWeight: 600,
+                        }}
+                      >
+                        📹 Uploaded Video: {videoData.videoUrl.split("/").pop()}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => videoFileInputRef.current?.click()}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: "#0284c7",
+                          fontWeight: 700,
+                          cursor: "pointer",
+                        }}
+                      >
+                        Change File
+                      </button>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
 
@@ -336,11 +656,13 @@ export const ConceptVideoManagementView = () => {
                   color: "var(--text-primary)",
                 }}
               >
-                Video Title <span style={{ color: "#ef4444" }}>*</span>
+                Video Title{" "}
+                <span style={{ fontSize: 11, fontWeight: 400, color: "#6b7280" }}>
+                  (Optional)
+                </span>
               </label>
               <input
                 type="text"
-                required
                 placeholder="e.g. What is Paryavaran Prahri?"
                 value={videoData.title}
                 onChange={(e) =>
@@ -367,10 +689,12 @@ export const ConceptVideoManagementView = () => {
                   color: "var(--text-primary)",
                 }}
               >
-                Video Subtitle / Description <span style={{ color: "#ef4444" }}>*</span>
+                Video Subtitle / Description{" "}
+                <span style={{ fontSize: 11, fontWeight: 400, color: "#6b7280" }}>
+                  (Optional)
+                </span>
               </label>
               <textarea
-                required
                 rows={3}
                 placeholder="Brief description explaining the video concept..."
                 value={videoData.subtitle}
@@ -388,7 +712,7 @@ export const ConceptVideoManagementView = () => {
               />
             </div>
 
-            {/* THUMBNAIL URL */}
+            {/* THUMBNAIL UPLOAD & DRAG & DROP SECTION */}
             <div>
               <div
                 style={{
@@ -406,16 +730,16 @@ export const ConceptVideoManagementView = () => {
                     margin: 0,
                   }}
                 >
-                  Thumbnail Image URL{" "}
+                  Thumbnail Image{" "}
                   <span style={{ fontSize: 11, fontWeight: 400, color: "#6b7280" }}>
-                    (Optional — leave blank to auto-use YouTube thumbnail)
+                    (Upload from Gallery or YouTube thumbnail)
                   </span>
                 </label>
                 {currentYtId && (
                   <button
                     type="button"
                     className="btn-secondary"
-                    style={{ fontSize: 12, padding: "2px 8px" }}
+                    style={{ fontSize: 12, padding: "3px 10px", display: "flex", alignItems: "center", gap: 4 }}
                     onClick={() =>
                       setVideoData({
                         ...videoData,
@@ -423,31 +747,90 @@ export const ConceptVideoManagementView = () => {
                       })
                     }
                   >
-                    <RefreshCw size={12} style={{ marginRight: 4 }} /> Auto
-                    YouTube Thumbnail
+                    <RefreshCw size={12} /> Auto YouTube Thumbnail
                   </button>
                 )}
               </div>
+
+              {/* THUMBNAIL DRAG & DROP ZONE */}
+              <input
+                type="file"
+                ref={thumbnailFileInputRef}
+                accept="image/png,image/jpeg,image/jpg,image/webp,image/*"
+                style={{ display: "none" }}
+                onChange={(e) => {
+                  if (e.target.files && e.target.files[0]) {
+                    handleThumbnailFileUpload(e.target.files[0]);
+                  }
+                }}
+              />
+
+              <div
+                onDragEnter={handleThumbnailDrag}
+                onDragLeave={handleThumbnailDrag}
+                onDragOver={handleThumbnailDrag}
+                onDrop={handleThumbnailDrop}
+                onClick={() => thumbnailFileInputRef.current?.click()}
+                style={{
+                  border: thumbnailDragActive
+                    ? "2px dashed #10b981"
+                    : "1px dashed var(--border-color, #cbd5e1)",
+                  background: thumbnailDragActive ? "#ecfdf5" : "#fafafa",
+                  borderRadius: 10,
+                  padding: "16px",
+                  textAlign: "center",
+                  cursor: "pointer",
+                  marginBottom: 8,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 12,
+                  transition: "all 0.2s ease",
+                }}
+              >
+                {uploadingThumbnail ? (
+                  <>
+                    <RefreshCw size={20} color="#10b981" className="spin" />
+                    <span style={{ fontSize: 13, fontWeight: 600, color: "#10b981" }}>
+                      Uploading thumbnail image...
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <ImageIcon size={22} color="#10b981" />
+                    <div style={{ textAlign: "left" }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: "#1e293b", display: "block" }}>
+                        Drag & Drop thumbnail image here or <span style={{ color: "#10b981" }}>browse Gallery</span>
+                      </span>
+                      <span style={{ fontSize: 11, color: "#64748b" }}>
+                        PNG, JPG, WEBP recommended
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* THUMBNAIL URL INPUT FALLBACK */}
               <div style={{ position: "relative" }}>
                 <input
                   type="url"
-                  placeholder="https://img.youtube.com/vi/.../maxresdefault.jpg"
+                  placeholder="Or paste direct image URL (https://...)"
                   value={videoData.thumbnailUrl}
                   onChange={(e) =>
                     setVideoData({ ...videoData, thumbnailUrl: e.target.value })
                   }
                   style={{
                     width: "100%",
-                    padding: "10px 12px 10px 38px",
-                    borderRadius: 10,
+                    padding: "8px 12px 8px 36px",
+                    borderRadius: 8,
                     border: "1px solid var(--border-color, #e5e7eb)",
-                    fontSize: 14,
+                    fontSize: 13,
                   }}
                 />
-                <ImageIcon
-                  size={18}
+                <LinkIcon
+                  size={16}
                   color="var(--text-secondary)"
-                  style={{ position: "absolute", left: 12, top: 12 }}
+                  style={{ position: "absolute", left: 12, top: 10 }}
                 />
               </div>
             </div>
@@ -457,7 +840,7 @@ export const ConceptVideoManagementView = () => {
               <button
                 type="submit"
                 className="btn-primary"
-                disabled={saving || (hasUrlInput && !isUrlValid)}
+                disabled={saving || uploadingVideo || uploadingThumbnail || (hasUrlInput && !isUrlValid)}
                 style={{
                   padding: "12px 24px",
                   fontSize: 15,
@@ -466,9 +849,9 @@ export const ConceptVideoManagementView = () => {
                   display: "inline-flex",
                   alignItems: "center",
                   gap: 8,
-                  opacity: saving || (hasUrlInput && !isUrlValid) ? 0.6 : 1,
+                  opacity: saving || uploadingVideo || uploadingThumbnail || (hasUrlInput && !isUrlValid) ? 0.6 : 1,
                   cursor:
-                    saving || (hasUrlInput && !isUrlValid)
+                    saving || uploadingVideo || uploadingThumbnail || (hasUrlInput && !isUrlValid)
                       ? "not-allowed"
                       : "pointer",
                 }}
@@ -572,8 +955,8 @@ export const ConceptVideoManagementView = () => {
                 onClick={handlePlayClick}
                 title={
                   isUrlValid
-                    ? "Click to preview YouTube video in player modal"
-                    : "Enter a valid YouTube URL to preview"
+                    ? "Click to preview video in player modal"
+                    : "Enter a valid video URL or upload a video file to preview"
                 }
               >
                 <img
@@ -581,7 +964,6 @@ export const ConceptVideoManagementView = () => {
                   alt="Thumbnail"
                   style={{ width: "100%", height: "100%", objectFit: "cover" }}
                   onError={(e) => {
-                    // Fallback thumbnail to hqdefault if maxres fails
                     if (currentYtId) {
                       e.currentTarget.src = `https://img.youtube.com/vi/${currentYtId}/hqdefault.jpg`;
                     }
@@ -713,8 +1095,8 @@ export const ConceptVideoManagementView = () => {
         </div>
       </div>
 
-      {/* EMBEDDED YOUTUBE VIDEO PLAYER MODAL */}
-      {isPlayerOpen && currentYtId && (
+      {/* EMBEDDED VIDEO PLAYER MODAL (SUPPORTS BOTH YOUTUBE AND DIRECT VIDEO FILES) */}
+      {isPlayerOpen && (
         <div
           className="modal-overlay"
           onClick={(e) => {
@@ -831,7 +1213,7 @@ export const ConceptVideoManagementView = () => {
               </button>
             </div>
 
-            {/* 16:9 RESPONSIVE YOUTUBE IFRAME PLAYER */}
+            {/* RESPONSIVE VIDEO PLAYER CONTAINER */}
             <div
               style={{
                 position: "relative",
@@ -840,20 +1222,33 @@ export const ConceptVideoManagementView = () => {
                 background: "#000",
               }}
             >
-              <iframe
-                src={`https://www.youtube.com/embed/${currentYtId}?autoplay=1&enablejsapi=1&rel=0&modestbranding=1`}
-                title={videoData.title || "YouTube video player"}
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                allowFullScreen
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  width: "100%",
-                  height: "100%",
-                  border: 0,
-                }}
-              />
+              {isDirectVideo ? (
+                <video
+                  src={videoData.videoUrl}
+                  controls
+                  autoPlay
+                  style={{ width: "100%", height: "100%", objectFit: "contain" }}
+                />
+              ) : currentYtId ? (
+                <iframe
+                  src={`https://www.youtube.com/embed/${currentYtId}?autoplay=1&enablejsapi=1&rel=0&modestbranding=1`}
+                  title={videoData.title || "YouTube video player"}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    height: "100%",
+                    border: 0,
+                  }}
+                />
+              ) : (
+                <div style={{ color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
+                  No playable video stream available.
+                </div>
+              )}
             </div>
 
             {/* MODAL FOOTER INFO */}
@@ -887,7 +1282,7 @@ export const ConceptVideoManagementView = () => {
                 }}
               >
                 <span>
-                  YouTube IFrame Player • Play, pause, seek, volume, mute, fullscreen enabled
+                  {isDirectVideo ? "Direct Video File Stream" : "YouTube IFrame Player"} • Play, pause, seek, volume enabled
                 </span>
                 <span style={{ fontStyle: "italic" }}>Press ESC or click outside to close</span>
               </div>
@@ -900,4 +1295,3 @@ export const ConceptVideoManagementView = () => {
 };
 
 export default ConceptVideoManagementView;
-
