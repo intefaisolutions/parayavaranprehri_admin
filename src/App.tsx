@@ -39,6 +39,7 @@ import { NewsView } from "./pages/NewsManagement";
 import { NewsForm } from "./pages/forms/NewsForm";
 import { MediaView } from "./pages/MediaManagement";
 import { MediaForm } from "./pages/forms/MediaForm";
+import { ConceptVideoManagementView } from "./pages/ConceptVideoManagement";
 import { LeadersView } from "./pages/InitiativeLeaders";
 import { LeaderForm } from "./pages/forms/LeaderForm";
 
@@ -213,6 +214,7 @@ function App() {
           <Route path="/media" element={<MediaView />} />
           <Route path="/media/add" element={<MediaForm />} />
           <Route path="/media/edit" element={<MediaForm />} />
+          <Route path="/concept-video" element={<ConceptVideoManagementView />} />
 
           <Route path="/leaders" element={<LeadersView />} />
           <Route path="/leaders/add" element={<LeaderForm />} />
